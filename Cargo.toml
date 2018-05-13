@@ -1,0 +1,16 @@
+[package]
+name = "avrvc"
+version = "0.1.0"
+authors = ["R1tschY <r1tschy@yahoo.de>"]
+
+[dependencies]
+docopt = "0.8"
+serde = "1.0"
+serde_derive = "1.0"
+tokio = "0.1"
+tokio-io = "0.1"
+bytes = "0.4"
+futures = "0.1"
+
+[dev-dependencies]
+pretty_assertions = "0.5.1"
