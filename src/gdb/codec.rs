@@ -1,13 +1,11 @@
 extern crate bytes;
 extern crate tokio_io;
 
-use self::bytes::{Bytes, BufMut, BytesMut};
+use self::bytes::{BufMut, BytesMut};
 use self::tokio_io::codec::{Encoder, Decoder};
 use std::io;
-use std::fmt;
 use std::str;
-use std::convert::From;
-use gdb::package::GdbServerPkt;
+use gdb::GdbServerPkt;
 
 /// `Codec` for `GdbServerPackage`s
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -22,11 +20,11 @@ impl GdbServerCodec {
 
 fn check_checksum(packet: &[u8]) -> Result<(), io::Error> {
 
-    let checksum_hex = str::from_utf8(&packet[packet.len() - 2 ..]).map_err(|err| io::Error::new(
+    let checksum_hex = str::from_utf8(&packet[packet.len() - 2 ..]).map_err(|_| io::Error::new(
         io::ErrorKind::InvalidData,
         format!("invalid checksum: {:x} {:x}", packet[packet.len() - 2], packet[packet.len() - 3])))?;
 
-    let checksum = u8::from_str_radix(checksum_hex, 16).map_err(|err| io::Error::new(
+    let checksum = u8::from_str_radix(checksum_hex, 16).map_err(|_| io::Error::new(
         io::ErrorKind::InvalidData,
         format!("invalid checksum: {}", checksum_hex)))?;
 
@@ -62,7 +60,7 @@ impl Decoder for GdbServerCodec {
                         .position(|&byte| byte == b'#');
                     match hashtag_pos {
                         Some(pos) if pos + 2 < buf.len() => {
-                            let mut packet = buf.split_to(pos + 3);
+                            let mut packet = buf.split_to(pos + 3).freeze();
                             check_checksum(&packet)?;
                             packet.truncate(pos);
                             packet.advance(1);
@@ -104,6 +102,7 @@ impl Encoder for GdbServerCodec {
             },
             GdbServerPkt::CtrlC => buf.put(b'\x03')
         };
+        println!("ENCODE: {}", String::from_utf8_lossy(buf));
         Ok(())
     }
 }

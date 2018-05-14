@@ -1,49 +1,38 @@
 use std::collections::HashMap;
+use bytes::Bytes;
 
-extern crate bytes;
-
-use self::bytes::BytesMut;
-use gdb::package::GdbServerPkt;
 use gdb::debugger::GdbDebugger;
 
 
-pub trait GdbCommandGroup {
-    fn handle(&self, pkt: &BytesMut, dbg: &mut GdbDebugger) -> Vec<u8>;
+type GdbRemoteCommand = Box<fn(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes>>;
+
+
+pub struct GdbCommands {
+    commands: HashMap<u8, GdbRemoteCommand>
 }
 
-pub struct CommandRegistry {
-    commands: HashMap<u8, Box<GdbCommandGroup>>
-}
+impl GdbCommands {
+    pub fn new() -> GdbCommands {
+        let mut registry: HashMap<u8, GdbRemoteCommand> = HashMap::new();
+        registry.insert(b'q', Box::new(q_commands));
 
-impl CommandRegistry {
-    pub fn new() -> CommandRegistry {
-        let mut registry: HashMap<u8, Box<GdbCommandGroup>> = HashMap::new();
-        registry.insert(b'q', Box::new(QCommands {}));
-
-
-        CommandRegistry {
+        GdbCommands {
             commands: registry
         }
     }
 
-    pub fn handle(&self, bytes: &BytesMut, dbg: &mut GdbDebugger) -> Vec<u8> {
+    pub fn handle(&self, bytes: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
         let key = bytes[0];
-        match self.commands.get(&key) {
-            Some(command_group) => command_group.handle(bytes, dbg),
-            None => vec![]
-        }
+        self.commands.get(&key).and_then(
+            |command| command(bytes, dbg))
     }
 }
 
-#[derive(Copy, Clone)]
-struct QCommands {}
 
-impl GdbCommandGroup for QCommands {
-    fn handle(&self, pkt: &BytesMut, dbg: &mut GdbDebugger) -> Vec<u8> {
-        if pkt.to_vec() == b"qSupported" || pkt.starts_with(b"qSupported:") {
-            return b"qXfer:memory-map:read+".to_vec()
-        }
-
-        vec![]
+fn q_commands(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
+    if pkt.to_vec() == b"qSupported" || pkt.starts_with(b"qSupported:") {
+        return Some(Bytes::from_static(b"qXfer:memory-map:read+"))
     }
+
+    None
 }
