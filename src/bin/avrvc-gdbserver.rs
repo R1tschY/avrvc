@@ -8,6 +8,7 @@ use docopt::Docopt;
 use avrvc::gdb as gdbserver;
 use tokio::runtime::Runtime;
 use tokio::prelude::*;
+use avrvc::core::AvrVmInfo;
 
 const USAGE: &'static str = "
 Naval Fate.
@@ -34,8 +35,10 @@ fn main() {
     let addr = args.arg_addr[0].parse().unwrap();
     println!("Listening to {} ...", addr);
 
+    let info = AvrVmInfo { pc_bytes: 3, xmega: true, flash_bytes: 100, memory_bytes: 200 };
+
     // Start the runtime and spin up the server
     let mut runtime = Runtime::new().unwrap();
-    gdbserver::serve(&addr, &mut runtime);
+    gdbserver::serve(&info, &addr, &mut runtime);
     runtime.shutdown_on_idle().wait().unwrap();
 }

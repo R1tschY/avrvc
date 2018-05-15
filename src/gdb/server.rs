@@ -17,71 +17,33 @@ use gdb::debugger::GdbDebugger;
 use futures::{Async, Poll, Future, Stream, Sink};
 use std::net::SocketAddr;
 use gdb::debugger::DebuggerState;
+use tokio::prelude::stream::{SplitSink, SplitStream};
+use futures::sync::mpsc::SendError;
+use core::AvrVmInfo;
 
 
-type Tx = mpsc::UnboundedSender<Bytes>;
-type Rx = mpsc::UnboundedReceiver<Bytes>;
+type Tx = mpsc::UnboundedSender<GdbServerPkt>;
+type Rx = mpsc::UnboundedReceiver<GdbServerPkt>;
 
-struct Shared {
-    pub server_tx: Tx,
-    pub client_rx: Rx,
-}
 
-impl Shared {
-    pub fn new(server_tx: Tx, client_rx: Rx) -> Self {
-        Shared { server_tx, client_rx }
+struct LockedStream<S: ?Sized>(Arc<Mutex<S>>);
+
+impl<S: Stream> Stream for LockedStream<S> {
+    type Item = S::Item;
+    type Error = S::Error;
+
+    fn poll(&mut self) -> Poll<Option<S::Item>, S::Error> {
+        self.0.lock().unwrap().poll()
     }
 }
 
-struct RemoteClient {
-    client_interface: Arc<Mutex<Shared>>,
-    gdb_stream: Framed<TcpStream, GdbServerCodec>,
-}
 
-impl RemoteClient {
-    pub fn new(
-        client_interface: Arc<Mutex<Shared>>,
-        gdb_stream: Framed<TcpStream, GdbServerCodec>
-    ) -> Self {
-        RemoteClient { client_interface, gdb_stream }
-    }
-}
-
-impl Future for RemoteClient {
-    type Item = ();
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        while let Async::Ready(pkt) = self.gdb_stream.poll()? {
-            match pkt {
-                Some(GdbServerPkt::Packet(bytes)) => {
-                    println!("IN: {}", String::from_utf8_lossy(&bytes));
-                    self.client_interface.lock().unwrap().server_tx.unbounded_send(
-                        bytes).unwrap();
-                    self.gdb_stream.start_send(GdbServerPkt::Ack { okay: true })?;
-                }
-                _ => { } // TODO: what to do when channel closes?
-            }
-        }
-
-        while let Async::Ready(pkt) = self.client_interface.lock().unwrap().client_rx.poll().unwrap() {
-            match pkt {
-                Some(bytes) => {
-                    println!("OUT: {}", String::from_utf8_lossy(&bytes));
-                    self.gdb_stream.start_send(GdbServerPkt::Packet(bytes))?;
-                }
-                None => { } // TODO: what to do when channel closes?
-            }
-        }
-
-        Ok(Async::NotReady)
-    }
-}
 
 struct RemoteServer {
     client_tx: Tx,
     server_rx: Rx,
-    client_interface: Arc<Mutex<Shared>>,
+    pub server_tx: Tx,
+    pub client_rx: Arc<Mutex<Rx>>,
     debugger: GdbDebugger,
     commands: GdbCommands
 }
@@ -132,73 +94,58 @@ impl Future for RemoteServer {
 
 impl RemoteServer {
 
-    pub fn new() -> Self {
+    pub fn new(info: &AvrVmInfo) -> Self {
         let (client_tx, client_rx) = mpsc::unbounded();
         let (server_tx, server_rx) = mpsc::unbounded();
-
-        let client_interface = Arc::new(Mutex::new(
-            Shared::new(server_tx, client_rx)));
 
         RemoteServer {
             client_tx,
             server_rx,
-            client_interface,
-            debugger: GdbDebugger::new(),
+            client_rx: Arc::new(Mutex::new(client_rx)),
+            server_tx: server_tx,
+            debugger: GdbDebugger::new(info),
             commands: GdbCommands::new()
         }
     }
 
-    pub fn get_client_interface(&self) -> Arc<Mutex<Shared>> {
-        self.client_interface.clone()
-    }
+    fn execute_command(&mut self, command: &GdbServerPkt) {
+        if let &GdbServerPkt::Packet(_) = command {
+            self.client_tx.start_send(GdbServerPkt::Ack { okay: true });
+        }
 
-    fn execute_command(&mut self, command: &Bytes) {
         if let Some(reply) = self.commands.handle(command, &mut self.debugger) {
             self.client_tx.start_send(reply);
         }
     }
 }
 
-pub fn serve(addr: &SocketAddr, runtime: &mut Runtime) {
+
+pub fn serve(info: &AvrVmInfo, addr: &SocketAddr, runtime: &mut Runtime) {
     let socket = TcpListener::bind(addr).unwrap();
-    let server = RemoteServer::new();
-    let client_interface = server.get_client_interface();
+    let server = RemoteServer::new(info);
+    let client_rx = server.client_rx.clone();
+    let server_tx = server.server_tx.clone();
 
     let done = socket
         .incoming()
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
         .for_each(move |socket| {
-            // Once we're inside this closure this represents an accepted client
-            // from our server. The `socket` is the client connection (similar to
-            // how the standard library operates).
-            //
-            // We're parsing each socket with the `BytesCodec` included in `tokio_io`,
-            // and then we `split` each codec into the reader/writer halves.
-            //
-            // See https://docs.rs/tokio-io/0.1/src/tokio_io/codec/bytes_codec.rs.html
             let framed = socket.framed(GdbServerCodec::new());
-            //let (writer, reader) = framed.split();
+            let (writer, reader) = framed.split();
 
-            let client = RemoteClient::new(client_interface.clone(), framed);
+            tokio::spawn(
+                server_tx
+                    .clone()
+                    .sink_map_err(|e| ())
+                    .send_all(reader.map_err(|e| ()))
+                    .then(|_| Ok(())));
 
-            let processor = client
-                // After our copy operation is complete we just print out some helpful
-                // information.
-                .and_then(|()| {
-                    println!("Socket received FIN packet and closed connection");
-                    Ok(())
-                })
-                .or_else(|err| {
-                    println!("Socket closed with error: {:?}", err);
-                    // We have to return the error to catch it in the next ``.then` call
-                    Err(err)
-                })
-                .then(|result| {
-                    println!("Socket closed with result: {:?}", result);
-                    Ok(())
-                });
-
-            tokio::spawn(processor)
+            let client_rx = client_rx.clone();
+            tokio::spawn(
+                writer
+                    .sink_map_err(|e| ())
+                    .send_all(LockedStream(client_rx).map_err(|e| ()))
+                    .then(|_| Ok(())))
         });
 
     let debug = server.map_err(|err| {

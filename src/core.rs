@@ -53,9 +53,7 @@ pub struct AvrVm {
 
     pub info: AvrVmInfo,
 
-    pub crash_handler: Box<Fn(Crash) -> ()>,
-
-    pub io: Vec<Box<AvrIoReg>>
+    pub io: Vec<Box<AvrIoReg + Send>>
 }
 
 impl AvrVm {
@@ -76,7 +74,6 @@ impl AvrVm {
             memory: Vec::new(),
             flash: Vec::new(),
             info: *info,
-            crash_handler: Box::new(default_crash_handler),
             io: Vec::new(),
             debugger: AvrDebugger::new()
         };
@@ -127,7 +124,7 @@ impl AvrVm {
         self.memory[self.sp]
     }
 
-    pub fn read_reg(&mut self, addr: u8) -> u8 {
+    pub fn read_reg(&self, addr: u8) -> u8 {
         self.memory[addr as usize]
     }
 
@@ -139,7 +136,7 @@ impl AvrVm {
         if addr > 31 {
             let io_addr = (addr - 31) as usize;
             if io_addr < self.io.len() {
-                let _io: &mut Box<AvrIoReg> = &mut (self.io[io_addr]);
+                let _io: &mut Box<AvrIoReg + Send> = &mut (self.io[io_addr]);
                 // TODO: io.write(self, addr, data);
             } else {
                 self.memory[addr as usize] = data;
@@ -153,7 +150,7 @@ impl AvrVm {
         if addr > 31 {
             let io_addr = (addr - 31) as usize;
             if io_addr < self.io.len() {
-                let _io: &mut Box<AvrIoReg> = &mut (self.io[io_addr]);
+                let _io: &mut Box<AvrIoReg + Send> = &mut (self.io[io_addr]);
                 // TODO: return io.read(self, addr);
                 0u8
             } else {
@@ -164,11 +161,10 @@ impl AvrVm {
         }
     }
 
-    pub fn crash(&mut self, crash_info: Crash) {
-        let handler = &self.crash_handler;
-        handler(crash_info);
-
+    pub fn crash(&mut self, crash_info: Crash) -> Result<(), Crash> {
         self.pc = 0; // reset
+
+        Err(crash_info)
     }
 
 }

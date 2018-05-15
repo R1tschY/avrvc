@@ -29,7 +29,7 @@ fn check_checksum(packet: &[u8]) -> Result<(), io::Error> {
         format!("invalid checksum: {}", checksum_hex)))?;
 
     let data = &packet[1 .. packet.len() - 3];
-    let sum = data.iter().fold(0u8, |acc, &x| ((acc as u16 + x as u16) & 0xFFu16) as u8);
+    let sum = calc_checksum(data);
     if sum == checksum {
         Ok(())
     } else {
@@ -39,12 +39,17 @@ fn check_checksum(packet: &[u8]) -> Result<(), io::Error> {
     }
 }
 
+fn calc_checksum(data: &[u8]) -> u8 {
+    data.iter().fold(0u8, |acc, &x| ((acc as u16 + x as u16) & 0xFFu16) as u8)
+}
+
 
 impl Decoder for GdbServerCodec {
     type Item = GdbServerPkt;
     type Error = io::Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        println!("DECODE: {}", String::from_utf8_lossy(buf));
         let len = buf.len();
         if len == 0 {
             Ok(None)
@@ -89,12 +94,13 @@ impl Encoder for GdbServerCodec {
     fn encode(&mut self, data: GdbServerPkt, buf: &mut BytesMut) -> Result<(), io::Error> {
         match data {
             GdbServerPkt::Packet(data) => {
+                let checksum = calc_checksum(&data);
+
                 buf.reserve(data.len() + 4);
                 buf.put(b'$');
                 buf.put(data);
                 buf.put(b'#');
-                buf.put(b'0'); // TODO
-                buf.put(b'0');
+                buf.put(format!("{:02x}", checksum).as_bytes());
             },
             GdbServerPkt::Ack { okay } => {
                 buf.put(if okay { b'+' } else { b'-' })
@@ -104,5 +110,19 @@ impl Encoder for GdbServerCodec {
         };
         println!("ENCODE: {}", String::from_utf8_lossy(buf));
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calc_checksum() {
+        assert_eq!(calc_checksum(b"Hg0"), 0xdf);
+        assert_eq!(calc_checksum(b""), 0x00);
+        assert_eq!(calc_checksum(b"vMustReplyEmpty"), 0x3a);
+        assert_eq!(calc_checksum(b"qTStatus"), 0x49);
     }
 }

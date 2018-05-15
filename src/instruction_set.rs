@@ -30,7 +30,7 @@ impl Instruction {
     /// execute instruction
     ///
     /// no checks on state are done!
-    pub fn execute(&self, state: &mut AvrVm) {
+    pub fn execute(&self, state: &mut AvrVm) -> Result<(), Crash> {
         state.pc += 1;
         state.cycles += 1;
 
@@ -114,7 +114,7 @@ impl Instruction {
                 if new_pc < 0 {
                     state.crash(Crash::PcOutOfBounds {
                         pc: new_pc as i32
-                    });
+                    })?;
                 } else {
                     state.pc = new_pc as usize;
                     state.cycles += 2;
@@ -124,9 +124,11 @@ impl Instruction {
 
             &Instruction::Invaild { opcode } => {
                 state.cycles -= 1;
-                state.crash(Crash::InvaildOpcode { opcode })
+                state.crash(Crash::InvaildOpcode { opcode })?;
             }
         }
+
+        Ok(())
     }
 
     /// size in bytes
