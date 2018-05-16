@@ -1,6 +1,6 @@
 
 use core::AvrVm;
-use core::Crash;
+use core::CpuSignal;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Instruction {
@@ -30,7 +30,7 @@ impl Instruction {
     /// execute instruction
     ///
     /// no checks on state are done!
-    pub fn execute(&self, state: &mut AvrVm) -> Result<(), Crash> {
+    pub fn execute(&self, state: &mut AvrVm) -> Result<(), CpuSignal> {
         state.pc += 1;
         state.cycles += 1;
 
@@ -112,7 +112,7 @@ impl Instruction {
             &Instruction::Rjmp { k } => {
                 let new_pc = state.pc as i32 + k as i32;
                 if new_pc < 0 {
-                    state.crash(Crash::PcOutOfBounds {
+                    state.crash(CpuSignal::PcOutOfBounds {
                         pc: new_pc as i32
                     })?;
                 } else {
@@ -124,7 +124,7 @@ impl Instruction {
 
             &Instruction::Invaild { opcode } => {
                 state.cycles -= 1;
-                state.crash(Crash::InvaildOpcode { opcode })?;
+                state.crash(CpuSignal::InvaildOpcode { opcode })?;
             }
         }
 
@@ -144,49 +144,32 @@ impl Instruction {
 mod tests {
     use super::*;
     use core::AvrVmInfo;
+    use models::xmega_au::XmegaA4U::ATxmega128A4U;
+    use models::AvrModel;
 
     #[test]
     fn execute_call_xmega() {
-        let info = AvrVmInfo { pc_bytes: 3, xmega: true, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
-        vm.sp = 100 - 1;
+        let mut vm = ATxmega128A4U.create_vm();
+        let old_sp = vm.sp;
         vm.pc = 0xAABBCC;
 
         let cmd = Instruction::Call { k: 0x1337 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
-        assert_eq!(vm.sp, 100 - 4);
-        assert_eq!(vm.memory[100 - 1], 0xCE);
-        assert_eq!(vm.memory[100 - 2], 0xBB);
-        assert_eq!(vm.memory[100 - 3], 0xAA);
-        assert_eq!(vm.pc, 0x1337);
-        assert_eq!(vm.cycles, 4);
-    }
-
-    #[test]
-    fn execute_call() {
-        let info = AvrVmInfo { pc_bytes: 2, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
-        vm.sp = 100 - 1;
-        vm.pc = 0xAABB;
-
-        let cmd = Instruction::Call { k: 0x1337 };
-        cmd.execute(&mut vm);
-
-        assert_eq!(vm.sp, 100 - 3);
-        assert_eq!(vm.memory[100 - 1], 0xBD);
-        assert_eq!(vm.memory[100 - 2], 0xAA);
+        assert_eq!(vm.sp, old_sp - 3);
+        assert_eq!(vm.read_mem(old_sp - 0), 0xCE);
+        assert_eq!(vm.read_mem(old_sp - 1), 0xBB);
+        assert_eq!(vm.read_mem(old_sp - 2), 0xAA);
         assert_eq!(vm.pc, 0x1337);
         assert_eq!(vm.cycles, 4);
     }
 
     #[test]
     fn execute_jmp() {
-        let info = AvrVmInfo { pc_bytes: 2, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
+        let mut vm = ATxmega128A4U.create_vm();
 
         let cmd = Instruction::Jmp { k: 0x1337 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.pc, 0x1337);
         assert_eq!(vm.cycles, 3);
@@ -194,12 +177,11 @@ mod tests {
 
     #[test]
     fn execute_rjmp() {
-        let info = AvrVmInfo { pc_bytes: 2, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
+        let mut vm = ATxmega128A4U.create_vm();
         vm.pc = 1000;
 
         let cmd = Instruction::Rjmp { k: -5 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.pc, 1000 - 5 + 1);
         assert_eq!(vm.cycles, 3);
@@ -207,15 +189,15 @@ mod tests {
 
     #[test]
     fn execute_ret() {
-        let info = AvrVmInfo { pc_bytes: 3, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
-        vm.memory[100 - 3] = 0xAAu8;
-        vm.memory[100 - 2] = 0xBBu8;
-        vm.memory[100 - 1] = 0xCCu8;
-        vm.sp = 100 - 4;
+        let mut vm = ATxmega128A4U.create_vm();
+
+        vm.ram[100 - 3] = 0xAAu8;
+        vm.ram[100 - 2] = 0xBBu8;
+        vm.ram[100 - 1] = 0xCCu8;
+        vm.sp = vm.info.ram_offset + 100 - 4;
 
         let cmd = Instruction::Ret;
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.pc, 0xAABBCC);
         assert_eq!(vm.cycles, 5);
@@ -223,25 +205,25 @@ mod tests {
 
     #[test]
     fn execute_in() {
-        let info = AvrVmInfo { pc_bytes: 3, xmega: true, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
-        vm.memory[33] = 0x42u8;
+        let mut vm = ATxmega128A4U.create_vm();
+
+        vm.write_mem(33, 0x42u8);
 
         let cmd = Instruction::In { d: 26, a: 33 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
-        assert_eq!(vm.read_reg(26), 0x42u8);
+        assert_eq!(vm.read_mem(26), 0x42u8);
         assert_eq!(vm.cycles, 1);
     }
 
     #[test]
     fn execute_out() {
-        let info = AvrVmInfo { pc_bytes: 3, xmega: true, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
+        let mut vm = ATxmega128A4U.create_vm();
+
         vm.write_reg(30, 0x76u8);
 
         let cmd = Instruction::Out { r: 30, a: 15 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.read_io(15), 0x76u8);
         assert_eq!(vm.cycles, 1);
@@ -249,11 +231,10 @@ mod tests {
 
     #[test]
     fn execute_ldi() {
-        let info = AvrVmInfo { pc_bytes: 2, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-        let mut vm = AvrVm::new(&info);
+        let mut vm = ATxmega128A4U.create_vm();
 
         let cmd = Instruction::Ldi { d: 17, k: 42 };
-        cmd.execute(&mut vm);
+        cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.read_reg(17), 42);
     }

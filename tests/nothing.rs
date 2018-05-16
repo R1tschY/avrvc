@@ -9,6 +9,9 @@ use std::fs::File;
 use std::io::Read;
 use avrvc::core::AvrVmInfo;
 use avrvc::core::AvrVm;
+use avrvc::core::CpuSignal;
+use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
+use avrvc::models::AvrModel;
 
 #[test]
 fn objdump_nothing() {
@@ -30,21 +33,29 @@ fn objdump_nothing() {
 #[test]
 fn run_nothing() {
     let bytes = read_executable_file("tests/nothing/main.bin");
-    let actual = objdump(&bytes) + "\n";
+    let _actual = objdump(&bytes) + "\n";
 
     let mut f = File::open("tests/nothing/main.S").expect("file not found");
     let mut expected = String::new();
     f.read_to_string(&mut expected).expect("something went wrong reading the file");
 
-    let info = AvrVmInfo { pc_bytes: 2, xmega: false, flash_bytes: 100, memory_bytes: 200 };
-    let mut vm = AvrVm::new(&info);
-    // vm.add_breakpoint(0x118 * 2)
-    assert_eq!(vm.memory[0x3FFF - 0], 0x0c);
-    assert_eq!(vm.memory[0x3FFF - 1], 0x01);
-    assert_eq!(vm.memory[0x3FFF - 2], 0x00);
-    assert_eq!(vm.memory[0x3FFF - 3], 0xff);
-    assert_eq!(vm.memory[0x3FFF - 4], 0x3f);
-    assert_eq!(vm.memory[0x3FFF - 5], 0x00);
+    let mut vm = ATxmega128A4U.create_vm();
+    vm.debugger.add_breakpoint(0x118 * 2);
+
+
+    for i in 0..100 {
+        if let Err(signal) = vm.step() {
+            assert_eq!(signal, CpuSignal::Break);
+            break;
+        }
+    }
+
+    assert_eq!(vm.ram[0x1FFF - 0], 0x0c);
+    assert_eq!(vm.ram[0x1FFF - 1], 0x01);
+    assert_eq!(vm.ram[0x1FFF - 2], 0x00);
+    assert_eq!(vm.ram[0x1FFF - 3], 0xff);
+    assert_eq!(vm.ram[0x1FFF - 4], 0x3f);
+    assert_eq!(vm.ram[0x1FFF - 5], 0x00);
     assert_eq!(vm.pc, 0x118 * 2);
     assert_eq!(vm.sp, 0x3ffc);
     assert_eq!(vm.cycles, 31);

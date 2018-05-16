@@ -10,6 +10,9 @@ use tokio::runtime::Runtime;
 use tokio::prelude::*;
 use avrvc::core::AvrVmInfo;
 
+use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
+use avrvc::models::AvrModel;
+
 const USAGE: &'static str = "
 Naval Fate.
 
@@ -35,10 +38,10 @@ fn main() {
     let addr = args.arg_addr[0].parse().unwrap();
     println!("Listening to {} ...", addr);
 
-    let info = AvrVmInfo { pc_bytes: 3, xmega: true, flash_bytes: 100, memory_bytes: 200 };
+    let vm = ATxmega128A4U.create_vm();
 
     // Start the runtime and spin up the server
     let mut runtime = Runtime::new().unwrap();
-    gdbserver::serve(&info, &addr, &mut runtime);
+    gdbserver::serve(vm, &addr, &mut runtime);
     runtime.shutdown_on_idle().wait().unwrap();
 }

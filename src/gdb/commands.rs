@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::str;
+
 use bytes::Bytes;
 
 use gdb::debugger::GdbDebugger;
 use gdb::GdbServerPkt;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 
 
 type GdbRemoteCommand = Box<fn(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes>>;
@@ -20,6 +22,7 @@ impl GdbCommands {
         registry.insert(b'q', Box::new(q_commands));
         registry.insert(b'v', Box::new(v_commands));
         registry.insert(b'?', Box::new(question_mark_command));
+        registry.insert(b's', Box::new(s_command));
 
         GdbCommands {
             commands: registry
@@ -39,32 +42,17 @@ impl GdbCommands {
                 }
             },
 
-            &GdbServerPkt::Ack { okay } => None, // TODO
+            &GdbServerPkt::Ack { .. } => None, // TODO
             &GdbServerPkt::CtrlC => None, // TODO
         }
     }
 }
 
-// Helper
-
-fn signal_reply(dbg: &GdbDebugger) -> Bytes {
-    Bytes::from(format!("S{:02x}", dbg.get_signal()))
-}
-
-fn read_register(reg: u32, dbg: &GdbDebugger, bytes: &mut BytesMut) {
-    match reg {
-        0...31 => bytes.put(format!("{:02x}", dbg.vc.core.read_reg(reg as u8))),
-        32 => bytes.put(format!("{:02x}", 0x00)), // TODO
-        33 => bytes.put(format!("{:04x}", dbg.vc.core.sp)), // TODO: sp as LE
-        34 => bytes.put(format!("{:08x}", dbg.vc.core.pc)), // TODO: pc as LE
-        _ => () // TODO: Error
-    }
-}
 
 // Commands
 
-fn q_commands(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
-    let (name, args) = pkt.split_at(pkt.iter().position(|&b| b == b':').unwrap_or(pkt.len()));
+fn q_commands(pkt: &Bytes, _dbg: &mut GdbDebugger) -> Option<Bytes> {
+    let (name, _args) = pkt.split_at(pkt.iter().position(|&b| b == b':').unwrap_or(pkt.len()));
 
     match name {
         b"qSupported" => Some(Bytes::from_static(b"qXfer:memory-map:read+")),
@@ -83,19 +71,39 @@ fn q_commands(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
 }
 
 
-fn v_commands(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
+fn v_commands(_pkt: &Bytes, _dbg: &mut GdbDebugger) -> Option<Bytes> {
     Some(Bytes::new())
 }
 
-fn question_mark_command(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
-    Some(signal_reply(dbg))
+fn question_mark_command(_pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
+    Some(dbg.signal_reply())
 }
 
-fn g_command(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
+fn g_command(_pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
     let mut bytes = BytesMut::with_capacity(128);
     for i in 0..35 {
-        read_register(i, dbg, &mut bytes);
+        dbg.read_register(i, &mut bytes);
     }
     Some(bytes.freeze())
+}
+
+fn s_command(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
+    let addr = &pkt[1..];
+    if addr.len() > 0 {
+        if let Ok(addr_str) = str::from_utf8(addr) {
+            if let Ok(addr_int) = usize::from_str_radix(addr_str, 16) {
+                dbg.vc.core.pc = addr_int;
+                match dbg.step() {
+                    _ => return Some(dbg.signal_reply()),
+                };
+            }
+        }
+    } else {
+        match dbg.step() {
+            _ => return Some(dbg.signal_reply()),
+        };
+    }
+
+    None // silent error
 }
 

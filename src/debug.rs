@@ -1,27 +1,32 @@
 use std::collections::HashSet;
 use core::AvrVm;
+use core::CpuSignal;
 
 pub struct AvrDebugger {
     /// code breakpoints
-    breakpoints: HashSet<usize>
+    hw_breakpoints: HashSet<usize>
 }
 
 impl AvrDebugger {
     pub fn new() -> AvrDebugger {
         AvrDebugger {
-            breakpoints: HashSet::new()
+            hw_breakpoints: HashSet::new()
         }
     }
 
     pub fn add_breakpoint(&mut self, pos: usize) {
-        self.breakpoints.insert(pos);
+        self.hw_breakpoints.insert(pos);
     }
 
     pub fn remove_breakpoint(&mut self, pos: usize) {
-        self.breakpoints.insert(pos);
+        self.hw_breakpoints.insert(pos);
     }
 
-    pub fn instr_hook(&self, vm: &mut AvrVm) {
-//        vm.
+    pub fn pre_instr_hook(&self, vm: &AvrVm) -> Result<(), CpuSignal> {
+        if self.hw_breakpoints.contains(&vm.pc) {
+            Err(CpuSignal::Break)
+        } else {
+            Ok(())
+        }
     }
 }
