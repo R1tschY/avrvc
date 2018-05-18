@@ -20,19 +20,31 @@ impl AvrModel for XmegaA4U {
             &ATxmega128A4U => 0x10FFF + 1,
         };
 
-        let ram_bytes = match self {
-            &ATxmega16A4U => 0x7FF + 1,
-            &ATxmega32A4U => 0xFFF + 1,
-            &ATxmega64A4U => 0xFFF + 1,
+        let ram_end = match self {
+            &ATxmega16A4U => 0x27FF + 1,
+            &ATxmega32A4U => 0x2FFF + 1,
+            &ATxmega64A4U => 0x2FFF + 1,
             &ATxmega128A4U => 0x3FFF + 1,
         };
 
+        let eeprom_end = match self {
+            &ATxmega16A4U => 0x13FF + 1,
+            &ATxmega32A4U => 0x13FF + 1,
+            &ATxmega64A4U => 0x17FF + 1,
+            &ATxmega128A4U => 0x17FF + 1,
+        };
+
         let info = AvrVmInfo{
-            pc_bytes: 3, xmega: true, flash_bytes, ram_bytes, ram_offset: 0x2000
+            pc_bytes: 3,
+            xmega: true,
+            flash_bytes,
+            ios: 0xFFF + 1,
+            ram: 0x2000..ram_end,
+            eeprom: 0x1000..eeprom_end
         };
 
         let mut vm = AvrVm::new(&info);
-        vm.sp = 0x2000 + info.ram_bytes - 1;
+        vm.sp = ram_end - 1;
         vm
     }
 }

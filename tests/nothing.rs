@@ -50,18 +50,18 @@ fn run_nothing() {
         }
     }
 
-    assert_eq!(vm.ram[0x1FFF - 0], 0x0c);
-    assert_eq!(vm.ram[0x1FFF - 1], 0x01);
-    assert_eq!(vm.ram[0x1FFF - 2], 0x00);
-    assert_eq!(vm.ram[0x1FFF - 3], 0xff);
-    assert_eq!(vm.ram[0x1FFF - 4], 0x3f);
-    assert_eq!(vm.ram[0x1FFF - 5], 0x00);
+    assert_eq!(vm.read_mem(0x1FFF - 0), 0x0c);
+    assert_eq!(vm.read_mem(0x1FFF - 1), 0x01);
+    assert_eq!(vm.read_mem(0x1FFF - 2), 0x00);
+    assert_eq!(vm.read_mem(0x1FFF - 3), 0xff);
+    assert_eq!(vm.read_mem(0x1FFF - 4), 0x3f);
+    assert_eq!(vm.read_mem(0x1FFF - 5), 0x00);
     assert_eq!(vm.pc, 0x118 * 2);
     assert_eq!(vm.sp, 0x3ffc);
     assert_eq!(vm.cycles, 31);
-//    assert_eq!(vm.read_x(), 0x0000);
-//    assert_eq!(vm.read_y(), 0x3FFF);
-//    assert_eq!(vm.read_z(), 0x0000);
+    assert_eq!(vm.read_x(), 0x0000);
+    assert_eq!(vm.read_y(), 0x3FFF);
+    assert_eq!(vm.read_z(), 0x0000);
 //    assert_eq!(vm.read_sreg(), 0x0000);
     assert_eq!(vm.read_reg(24), 0x2A);
     assert_eq!(vm.read_reg(28), 0xFF);

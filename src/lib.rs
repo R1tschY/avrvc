@@ -15,3 +15,5 @@ pub mod tools;
 pub mod debug;
 pub mod gdb;
 pub mod models;
+pub mod memory;
+pub mod types;

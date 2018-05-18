@@ -64,7 +64,7 @@ impl GdbDebugger {
     pub fn read_register(&self, reg: u32, bytes: &mut BytesMut) {
         match reg {
             0...31 => bytes.put(format!("{:02x}", self.vc.core.read_reg(reg as u8))),
-            32 => bytes.put(format!("{:02x}", 0x00)), // TODO
+            32 => bytes.put(format!("{:02x}", self.vc.core.read_sreg())),
             33 => bytes.put(format!("{:04x}", self.vc.core.sp)), // TODO: sp as LE
             34 => bytes.put(format!("{:08x}", self.vc.core.pc)), // TODO: pc as LE
             _ => () // TODO: Error

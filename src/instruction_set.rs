@@ -67,7 +67,7 @@ impl Instruction {
             },
 
             &Instruction::In { d, a } => {
-                let io = state.read_io(a);
+                let io = state.read_mem(a as usize);
                 state.write_reg(d, io);
             },
 
@@ -82,7 +82,7 @@ impl Instruction {
 
             &Instruction::Out { r, a } => {
                 let reg = state.read_reg(r);
-                state.write_io(a, reg);
+                state.write_mem(a as usize, reg);
             },
 
             &Instruction::Pop { r } => {
@@ -191,10 +191,10 @@ mod tests {
     fn execute_ret() {
         let mut vm = ATxmega128A4U.create_vm();
 
-        vm.ram[100 - 3] = 0xAAu8;
-        vm.ram[100 - 2] = 0xBBu8;
-        vm.ram[100 - 1] = 0xCCu8;
-        vm.sp = vm.info.ram_offset + 100 - 4;
+        vm.write_mem(100 - 3, 0xAAu8);
+        vm.write_mem(100 - 2, 0xBBu8);
+        vm.write_mem(100 - 1, 0xCCu8);
+        vm.sp = vm.info.ram.start + 100 - 4;
 
         let cmd = Instruction::Ret;
         cmd.execute(&mut vm).unwrap();
@@ -225,7 +225,7 @@ mod tests {
         let cmd = Instruction::Out { r: 30, a: 15 };
         cmd.execute(&mut vm).unwrap();
 
-        assert_eq!(vm.read_io(15), 0x76u8);
+        assert_eq!(vm.read_mem(15), 0x76u8);
         assert_eq!(vm.cycles, 1);
     }
 

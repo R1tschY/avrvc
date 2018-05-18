@@ -16,3 +16,8 @@ pub fn u32le(a: u8, b: u8, c: u8, d: u8) -> u32 {
 pub fn u32be(a: u8, b: u8, c: u8, d: u8) -> u32 {
     (a as u32) << 24 | (b as u32) << 16 | (c as u32) << 8 | (d as u32)
 }
+
+pub fn u8bits(a: bool, b: bool, c: bool, d: bool, e: bool, f: bool, g: bool, h: bool) -> u8 {
+    ((a as u8) << 7) | ((b as u8) << 6) | ((c as u8) << 5) | ((d as u8) << 4) | ((e as u8) << 3) |
+        ((f as u8) << 2) | ((g as u8) << 1) | ((h as u8) << 0)
+}
