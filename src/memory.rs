@@ -37,6 +37,7 @@ impl MemoryController {
         } else if addr > self.eeprom_offset && addr < self.eeprom_offset + self.eeprom.len() {
             self.eeprom[addr - self.eeprom_offset]
         } else {
+            debug_assert!(false, "read from reserved memory: 0x{:08x}", addr);
             0
         }
     }
@@ -50,6 +51,8 @@ impl MemoryController {
         } else if addr > self.eeprom_offset && addr < self.eeprom_offset + self.eeprom.len() {
             let offset = self.eeprom_offset;
             self.eeprom[addr - offset] = value;
+        } else {
+            debug_assert!(false, "write to reserved memory: 0x{:08x}", addr);
         }
     }
 

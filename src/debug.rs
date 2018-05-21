@@ -1,16 +1,21 @@
 use std::collections::HashSet;
 use core::AvrVm;
 use core::CpuSignal;
+use instruction_set::Instruction;
+use tools::objdump::ObjDumpInstr;
 
 pub struct AvrDebugger {
     /// code breakpoints
-    hw_breakpoints: HashSet<usize>
+    hw_breakpoints: HashSet<usize>,
+
+    pub trace: bool
 }
 
 impl AvrDebugger {
     pub fn new() -> AvrDebugger {
         AvrDebugger {
-            hw_breakpoints: HashSet::new()
+            hw_breakpoints: HashSet::new(),
+            trace: false
         }
     }
 
@@ -22,11 +27,15 @@ impl AvrDebugger {
         self.hw_breakpoints.insert(pos);
     }
 
-    pub fn pre_instr_hook(&self, vm: &AvrVm) -> Result<(), CpuSignal> {
+    pub fn pre_instr_hook(&self, vm: &AvrVm, instr: &Instruction) -> Result<(), CpuSignal> {
         if self.hw_breakpoints.contains(&vm.pc) {
-            Err(CpuSignal::Break)
-        } else {
-            Ok(())
+            return Err(CpuSignal::Break)
         }
+
+        if self.trace {
+            println!("{:06x}: {}\t{:x}", vm.pc * 2, instr.dump(), vm.sp);
+        }
+
+        Ok(())
     }
 }

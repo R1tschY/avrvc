@@ -17,6 +17,7 @@ use core::AvrVmInfo;
 use gdb::debugger::DebuggerState::{Stopped, Running};
 use core::AvrVm;
 use models::AvrModel;
+use bytes::Bytes;
 
 
 type Tx = mpsc::UnboundedSender<GdbServerPkt>;
@@ -33,8 +34,6 @@ impl<S: Stream> Stream for LockedStream<S> {
         self.0.lock().unwrap().poll()
     }
 }
-
-
 
 struct RemoteServer {
     client_tx: Tx,
@@ -128,7 +127,7 @@ pub fn serve(vm: AvrVm, addr: &SocketAddr, runtime: &mut Runtime) {
     let client_rx = server.client_rx.clone();
     let server_tx = server.server_tx.clone();
 
-    let done = socket
+    let client = socket
         .incoming()
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
         .for_each(move |socket| {
@@ -150,11 +149,11 @@ pub fn serve(vm: AvrVm, addr: &SocketAddr, runtime: &mut Runtime) {
                     .then(|_| Ok(())))
         });
 
-    let debug = server.map_err(|err| {
+    let debugger = server.map_err(|err| {
         println!("ERROR: {:?}", err);
     });
 
     // Start the runtime and spin up the server
-    runtime.spawn(done);
-    runtime.spawn(debug);
+    runtime.spawn(client);
+    runtime.spawn(debugger);
 }

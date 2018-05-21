@@ -3,6 +3,11 @@ use instruction_set::Instruction;
 use std::collections::HashMap;
 use byte_convert::u16le;
 
+
+fn encode_26(d: u8, k: u8) -> u16 {
+    (k as u16 & 0x0F) | ((k as u16 & 0x30) << 2) | ((d as u16) << 4)
+}
+
 fn encode_55(d: u8, r: u8) -> u16 {
     ((r as u16 & 0b10000) << 5) | (r as u16 & 0b1111) | ((d as u16) << 4)
 }
@@ -22,6 +27,33 @@ impl AvrDecoder {
 
         instr16.insert(0b_1001_0100_1111_1000_u16, Instruction::Cli);
         instr16.insert(0b_1001_0101_0000_1000_u16, Instruction::Ret);
+
+        // ADC
+        for d in 0..=31u8 {
+            for r in 0..=31u8 {
+                instr16.insert(
+                    0b_0001_1100_0000_0000_u16 | encode_55(d, r),
+                    Instruction::Adc { d, r });
+            }
+        }
+
+        // ADD
+        for d in 0..=31u8 {
+            for r in 0..=31u8 {
+                instr16.insert(
+                    0b_0000_1100_0000_0000_u16 | encode_55(d, r),
+                    Instruction::Adc { d, r });
+            }
+        }
+
+        // ADIW
+        for &d in [24u8, 26u8, 28u8, 30u8].iter() {
+            for k in 0..=63u8 {
+                instr16.insert(
+                    0b_0000_1100_0000_0000_u16 | encode_26((d - 24) / 2, k),
+                    Instruction::Adiw { d, k });
+            }
+        }
 
         // LDI
         for d in 16..32u8 {
@@ -125,7 +157,7 @@ impl AvrDecoder {
             ((w0 as usize & 0b111110000) << 13)
                 | ((w0 as usize & 0x1) << 16)
                 | w1 as usize
-        ) << 1
+        )
     }
 }
 

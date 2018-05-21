@@ -4,6 +4,9 @@ use core::CpuSignal;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Instruction {
+    Adc { d: u8, r: u8 },
+    Add { d: u8, r: u8 },
+    Adiw { d: u8, k: u8 },
     Call { k: usize },
     Cli,
     Eor { d: u8, r: u8 },
@@ -25,16 +28,48 @@ fn set_zns(state: &mut AvrVm, res: u8) {
     state.sign = state.n ^ state.v;
 }
 
+fn set_zns16(state: &mut AvrVm, res: u16) {
+    state.n = (res >> 15) != 0;
+    state.zero = res == 0;
+    state.sign = state.n ^ state.v;
+}
+
 impl Instruction {
 
     /// execute instruction
     ///
     /// no checks on state are done!
     pub fn execute(&self, state: &mut AvrVm) -> Result<(), CpuSignal> {
+        use instruction_set::Instruction::*;
+
         state.pc += 1;
         state.cycles += 1;
 
         match self {
+            &Adc { d, r } => {
+                let r = state.read_reg(d) as u16 + state.read_reg(r) as u16 + state.carry as u16;
+                state.carry = r > 0xFF;
+                // TODO: HV
+                set_zns(state, r as u8);
+                state.write_reg(d, (r & 0xFF) as u8);
+            },
+            &Add { d, r } => {
+                let r = state.read_reg(d) as u16 + state.read_reg(r) as u16;
+                state.carry = r > 0xFF;
+                // TODO: HV
+                set_zns(state, r as u8);
+                state.write_reg(d, (r & 0xFF) as u8);
+            },
+            &Adiw { d, k } => {
+                let rd = state.read_reg16(d) as u32;
+                let r = rd + k as u32;
+                state.carry = r > 0xFFFF;
+                state.v = ((!rd & r) & 0x8000) != 0;
+                set_zns16(state, r as u16);
+                state.write_reg16(d, (r & 0xFFFF) as u16);
+                state.cycles += 1;
+            },
+
             &Instruction::Call { k } => {
                 let pc = state.pc;
                 if state.info.pc_bytes == 3 {
@@ -131,11 +166,11 @@ impl Instruction {
         Ok(())
     }
 
-    /// size in bytes
+    /// size in words
     pub fn size(&self) -> usize {
         match self {
-            &Instruction::Jmp { .. } | &Instruction::Call { .. } => 4,
-            _ => 2
+            &Instruction::Jmp { .. } | &Instruction::Call { .. } => 2,
+            _ => 1
         }
     }
 }
@@ -191,10 +226,11 @@ mod tests {
     fn execute_ret() {
         let mut vm = ATxmega128A4U.create_vm();
 
-        vm.write_mem(100 - 3, 0xAAu8);
-        vm.write_mem(100 - 2, 0xBBu8);
-        vm.write_mem(100 - 1, 0xCCu8);
-        vm.sp = vm.info.ram.start + 100 - 4;
+        vm.sp -= 3;
+        let sp = vm.sp;
+        vm.write_mem(sp + 1, 0xAAu8);
+        vm.write_mem(sp + 2, 0xBBu8);
+        vm.write_mem(sp + 3, 0xCCu8);
 
         let cmd = Instruction::Ret;
         cmd.execute(&mut vm).unwrap();
@@ -212,7 +248,7 @@ mod tests {
         let cmd = Instruction::In { d: 26, a: 33 };
         cmd.execute(&mut vm).unwrap();
 
-        assert_eq!(vm.read_mem(26), 0x42u8);
+        assert_eq!(vm.read_reg(26), 0x42u8);
         assert_eq!(vm.cycles, 1);
     }
 

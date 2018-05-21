@@ -31,7 +31,7 @@ pub struct AvrVm {
     /// cycle counter
     pub cycles: u64,
 
-    /// program counter (PC) in bytes
+    /// program counter (PC) in words
     pub pc: usize,
 
     /// stack pointer (SP)
@@ -117,7 +117,7 @@ impl AvrVm {
     }
 
     pub fn push(&mut self, v: u8) {
-        self.sp += 1;
+        self.sp -= 1;
         let sp = self.sp;
         self.write_mem(sp + 1, v);
     }
@@ -154,8 +154,17 @@ impl AvrVm {
         self.register[addr as usize]
     }
 
+    pub fn read_reg16(&self, addr: u8) -> u16 {
+        u16le(self.register[addr as usize], self.register[addr as usize + 1])
+    }
+
     pub fn write_reg(&mut self, addr: u8, data: u8) -> () {
         self.register[addr as usize] = data;
+    }
+
+    pub fn write_reg16(&mut self, addr: u8, data: u16) -> () {
+        self.register[addr as usize] = (data & 0xFF) as u8;
+        self.register[addr as usize + 1] = (data >> 8) as u8;
     }
 
     pub fn read_mem(&self, addr: usize) -> u8 {
@@ -208,6 +217,10 @@ impl AvrVm {
         self.interrupt = (value & (1 << 7) != 0);
     }
 
+    pub fn write_flash(&mut self, addr: usize, data: &[u8]) {
+        self.flash[addr..addr+data.len()].copy_from_slice(&data);
+    }
+
     pub fn crash(&mut self, crash_info: CpuSignal) -> Result<(), CpuSignal> {
         self.pc = 0; // reset
 
@@ -215,9 +228,8 @@ impl AvrVm {
     }
 
     pub fn step(&mut self) -> Result<(), CpuSignal> {
-        self.debugger.pre_instr_hook(self)?;
-
-        let instr = self.decoder.decode(&self.flash, self.pc);
+        let instr = self.decoder.decode(&self.flash, self.pc * 2);
+        self.debugger.pre_instr_hook(self, &instr)?;
         instr.execute(self)
     }
 
