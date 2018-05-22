@@ -29,8 +29,8 @@ impl AvrDecoder {
         instr16.insert(0b_1001_0101_0000_1000_u16, Instruction::Ret);
 
         // ADC
-        for d in 0..=31u8 {
-            for r in 0..=31u8 {
+        for d in 0..32u8 {
+            for r in 0..32u8 {
                 instr16.insert(
                     0b_0001_1100_0000_0000_u16 | encode_55(d, r),
                     Instruction::Adc { d, r });
@@ -38,8 +38,8 @@ impl AvrDecoder {
         }
 
         // ADD
-        for d in 0..=31u8 {
-            for r in 0..=31u8 {
+        for d in 0..32u8 {
+            for r in 0..32u8 {
                 instr16.insert(
                     0b_0000_1100_0000_0000_u16 | encode_55(d, r),
                     Instruction::Adc { d, r });
@@ -48,7 +48,7 @@ impl AvrDecoder {
 
         // ADIW
         for &d in [24u8, 26u8, 28u8, 30u8].iter() {
-            for k in 0..=63u8 {
+            for k in 0..64u8 {
                 instr16.insert(
                     0b_0000_1100_0000_0000_u16 | encode_26((d - 24) / 2, k),
                     Instruction::Adiw { d, k });

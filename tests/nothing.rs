@@ -44,7 +44,7 @@ fn run_nothing() {
 
 
     vm.debugger.trace = true;
-    vm.debugger.add_breakpoint(0x118);
+    vm.debugger.add_breakpoint(0x11A);
 
 
     for i in 0..100 {
@@ -60,14 +60,14 @@ fn run_nothing() {
     assert_eq!(vm.read_mem(0x3FFF - 3), 0xff);
     assert_eq!(vm.read_mem(0x3FFF - 4), 0x3f);
     assert_eq!(vm.read_mem(0x3FFF - 5), 0x00);
-    assert_eq!(vm.pc, 0x118);
-    assert_eq!(vm.sp, 0x3ffc);
-    assert_eq!(vm.cycles, 31);
+    assert_eq!(vm.pc, 0x11A);
+    assert_eq!(vm.sp, 0x3fff);
+    assert!(vm.cycles >= 37 && vm.cycles <= 40);
     assert_eq!(vm.read_reg(24), 0x2A);
     assert_eq!(vm.read_reg(28), 0xFF);
     assert_eq!(vm.read_reg(29), 0x3F);
     assert_eq!(vm.read_x(), 0x0000);
     assert_eq!(vm.read_y(), 0x3FFF);
     assert_eq!(vm.read_z(), 0x0000);
-    assert_eq!(vm.read_sreg(), 0x00);
+    assert_eq!(vm.read_sreg(), 0x02);
 }

@@ -3,6 +3,8 @@ use core::AvrVm;
 use core::CpuSignal;
 use instruction_set::Instruction;
 use tools::objdump::ObjDumpInstr;
+use std::str::FromStr;
+use std::ops::Add;
 
 pub struct AvrDebugger {
     /// code breakpoints
@@ -33,7 +35,18 @@ impl AvrDebugger {
         }
 
         if self.trace {
-            println!("{:06x}: {}\t{:x}", vm.pc * 2, instr.dump(), vm.sp);
+            let sreg = vm.read_sreg();
+            let mut flags = String::new();
+            let flags_chars: Vec<char> = "CZNVSHTI".chars().collect();
+            for i in 0..8 {
+                if (sreg & (1 << i)) != 0 {
+                    flags.push(flags_chars[i]);
+                }
+            }
+
+            println!(
+                "{:06x} / {:>3} / {:>8}: {}",
+                vm.pc * 2, vm.cycles, flags, instr.dump());
         }
 
         Ok(())
