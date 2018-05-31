@@ -1,4 +1,5 @@
-use decoder::AvrDecoder;
+use decoder::Decoder;
+use decoder::AvrDecoderCache;
 use debug::AvrDebugger;
 use byte_convert::u32be;
 use byte_convert::u16be;
@@ -8,7 +9,6 @@ use byte_convert::u8bits;
 use byte_convert::read_u16le;
 use std::collections::HashMap;
 use byte_convert::write_u16le;
-use std::sync::Arc;
 
 /// Signals send by cpu
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -60,6 +60,7 @@ pub struct AvrCoreState {
     pub carry: bool,
 
     /// flash bytes
+    /// TODO: write through write_flash
     pub flash: Vec<u8>,
 
     ram_offset: usize,
@@ -132,7 +133,7 @@ pub struct AvrVm {
     io_regs_r: HashMap<usize, IoReadFunc>,
     io_reg_state: Vec<u8>,
 
-    pub decoder: AvrDecoder
+    pub decoder: AvrDecoderCache
 }
 
 impl AvrVm {
@@ -169,7 +170,7 @@ impl AvrVm {
             io_reg_state: vec![0u8; info.ios],
 
             debugger: AvrDebugger::new(),
-            decoder: AvrDecoder::new()
+            decoder: AvrDecoderCache::new()
         };
         result.core.flash.resize(info.flash_bytes, 0);
         result
@@ -228,6 +229,7 @@ impl AvrVm {
 
     pub fn write_flash(&mut self, addr: usize, data: &[u8]) {
         self.core.flash[addr..addr+data.len()].copy_from_slice(&data);
+        self.decoder.refresh(&self.core.flash);
     }
 
     pub fn register_io(&mut self, addr: usize, read_func: IoReadFunc, write_func: IoWriteFunc) {

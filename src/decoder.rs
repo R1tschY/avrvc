@@ -1,7 +1,10 @@
-
 use instruction_set::Instruction;
 use std::collections::HashMap;
 use byte_convert::u16le;
+
+pub trait Decoder {
+    fn decode(&self, bytes: &Vec<u8>, pos: usize) -> Instruction;
+}
 
 
 fn encode_56(r: u8, a: u8) -> u16 {
@@ -188,31 +191,6 @@ impl AvrDecoder {
         AvrDecoder { instr16 }
     }
 
-    /// decode opcode at position `pos`
-    ///
-    /// no bounds checking performed!
-    pub fn decode(&self, bytes: &Vec<u8>, pos: usize) -> Instruction {
-        // 1001 010x JMP
-        // 1001 010x CALL
-        // 1001 000x LDS
-        let b0: u8 = bytes[pos];
-        let b1: u8 = bytes[pos + 1];
-        let w0 = u16le(b0, b1);
-
-        if b1 & 0b11111110 == 0b10010100 {
-            match b0 & 0b1110 {
-                0b1100 => return Instruction::Jmp { k: self.decode_jump_call(bytes, pos, w0) },
-                0b1110 => return Instruction::Call { k: self.decode_jump_call(bytes, pos, w0) },
-                _ => { }
-            }
-        }
-
-        match self.instr16.get(&w0) {
-            Some(instr) => *instr,
-            None => Instruction::Invaild { opcode: w0 }
-        }
-    }
-
     fn decode_jump_call(&self, flash: &Vec<u8>, pos: usize, w0: u16) -> usize {
         if pos + 4 >= flash.len() {
             panic!("decode: index out of bounds: {}", pos)
@@ -235,6 +213,61 @@ impl AvrDecoder {
         )
     }
 }
+
+impl Decoder for AvrDecoder {
+    /// decode opcode at position `pos`
+    ///
+    /// no bounds checking performed!
+    fn decode(&self, bytes: &Vec<u8>, pos: usize) -> Instruction {
+        // 1001 010x JMP
+        // 1001 010x CALL
+        // 1001 000x LDS
+        let b0: u8 = bytes[pos];
+        let b1: u8 = if pos + 1 == bytes.len() { 0 } else { bytes[pos + 1] };
+        let w0 = u16le(b0, b1);
+
+        if b1 & 0b11111110 == 0b10010100 {
+            match b0 & 0b1110 {
+                0b1100 => return Instruction::Jmp { k: self.decode_jump_call(bytes, pos, w0) },
+                0b1110 => return Instruction::Call { k: self.decode_jump_call(bytes, pos, w0) },
+                _ => { }
+            }
+        }
+
+        match self.instr16.get(&w0) {
+            Some(instr) => *instr,
+            None => Instruction::Invaild { opcode: w0 }
+        }
+    }
+}
+
+
+pub struct AvrDecoderCache {
+    opcodes: Vec<Instruction>,
+    decoder: AvrDecoder
+}
+
+impl AvrDecoderCache {
+    pub fn new() -> AvrDecoderCache {
+        AvrDecoderCache {
+            opcodes: vec!(),
+            decoder: AvrDecoder::new()
+        }
+    }
+
+    pub fn refresh(&mut self, flash: &Vec<u8>) {
+        info!(target: "avrvc.decoder", "Refreshing instruction cache ...");
+        self.opcodes = (0..flash.len()).map(|pc| self.decoder.decode(flash, pc)).collect();
+    }
+}
+
+impl Decoder for AvrDecoderCache {
+    fn decode(&self, bytes: &Vec<u8>, pos: usize) -> Instruction {
+        debug_assert!(bytes.len() == self.opcodes.len());
+        self.opcodes[pos]
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
