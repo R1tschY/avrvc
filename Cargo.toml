@@ -10,7 +10,10 @@ serde_derive = "1.0"
 tokio = "0.1"
 tokio-io = "0.1"
 bytes = "0.4"
+log = "0.4"
+stderrlog = "0.4"
 futures = "0.1"
+hex = "0.3"
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"

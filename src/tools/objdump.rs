@@ -1,5 +1,6 @@
 use instruction_set::Instruction;
 use decoder::AvrDecoder;
+use decoder::Decoder;
 
 
 pub trait ObjDumpInstr {

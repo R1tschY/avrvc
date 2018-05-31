@@ -3,6 +3,9 @@ use controller::AvrController;
 use core::AvrVm;
 use core::CpuSignal;
 use bytes::{BytesMut, BufMut};
+use bytes::LittleEndian;
+use bytelevel::IntToBytes;
+use hex;
 
 
 /// Illegal instruction
@@ -23,6 +26,9 @@ pub struct GdbDebugger {
     state: DebuggerState,
     last_signal: u32
 }
+
+
+
 
 impl GdbDebugger {
     pub fn new(vm: AvrVm) -> Self {
@@ -64,8 +70,11 @@ impl GdbDebugger {
         match reg {
             0...31 => bytes.put(format!("{:02x}", self.vc.core.core.read_reg(reg as u8))),
             32 => bytes.put(format!("{:02x}", self.vc.core.core.read_sreg())),
-            33 => bytes.put(format!("{:04x}", self.vc.core.core.sp)), // TODO: sp as LE
-            34 => bytes.put(format!("{:08x}", self.vc.core.core.pc)), // TODO: pc as LE
+            33 => bytes.put(hex::encode((self.vc.core.core.sp as u16).as_bytes::<LittleEndian>())),
+            34 => {
+                let pc = (self.vc.core.core.pc as u32) * 2;
+                bytes.put(hex::encode(pc.as_bytes::<LittleEndian>()))
+            },
             _ => () // TODO: Error
         }
     }

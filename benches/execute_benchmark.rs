@@ -11,11 +11,8 @@ use avrvc::executable::read_executable_file;
 use avrvc::tools::objdump::objdump;
 use std::fs::File;
 use std::io::Read;
-use test::Bencher;
-use avrvc::core::CpuSignal;
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::models::AvrModel;
-use time::PreciseTime;
 use time::precise_time_s;
 
 #[test]
@@ -48,7 +45,7 @@ fn run_execute_benchmark() {
     let mut executed_instr = 0;
     for i in 0..1000000000 {
         executed_instr = i;
-        if let Err(signal) = vm.step() {
+        if let Err(_signal) = vm.step() {
             break;
         }
     }

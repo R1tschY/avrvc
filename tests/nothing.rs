@@ -61,5 +61,5 @@ fn run_nothing() {
     assert_eq!(vm.core.read_x(), 0x0000);
     assert_eq!(vm.core.read_y(), 0x3FFF);
     assert_eq!(vm.core.read_z(), 0x0000);
-    assert_eq!(vm.core.read_sreg(), 0x02);
+    assert_eq!(vm.core.read_sreg(), 0x00);
 }

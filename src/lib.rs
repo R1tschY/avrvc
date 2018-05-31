@@ -1,9 +1,10 @@
-#[macro_use] extern crate serde_derive;
 extern crate docopt;
 extern crate tokio;
 extern crate tokio_io;
 extern crate futures;
 extern crate bytes;
+extern crate hex;
+#[macro_use] extern crate log;
 
 pub mod core;
 pub mod decoder;
@@ -16,3 +17,4 @@ pub mod debug;
 pub mod gdb;
 pub mod models;
 pub mod bits;
+pub mod bytelevel;
