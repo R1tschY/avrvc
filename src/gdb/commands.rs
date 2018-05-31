@@ -92,7 +92,7 @@ fn s_command(pkt: &Bytes, dbg: &mut GdbDebugger) -> Option<Bytes> {
     if addr.len() > 0 {
         if let Ok(addr_str) = str::from_utf8(addr) {
             if let Ok(addr_int) = usize::from_str_radix(addr_str, 16) {
-                dbg.vc.core.pc = addr_int;
+                dbg.vc.core.core.pc = addr_int;
                 match dbg.step() {
                     _ => return Some(dbg.signal_reply()),
                 };

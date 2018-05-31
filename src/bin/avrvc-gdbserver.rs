@@ -8,7 +8,6 @@ use docopt::Docopt;
 use avrvc::gdb as gdbserver;
 use tokio::runtime::Runtime;
 use tokio::prelude::*;
-use avrvc::core::AvrVmInfo;
 
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::models::AvrModel;

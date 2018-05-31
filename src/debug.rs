@@ -3,8 +3,6 @@ use core::AvrVm;
 use core::CpuSignal;
 use instruction_set::Instruction;
 use tools::objdump::ObjDumpInstr;
-use std::str::FromStr;
-use std::ops::Add;
 
 pub struct AvrDebugger {
     /// code breakpoints
@@ -30,12 +28,12 @@ impl AvrDebugger {
     }
 
     pub fn pre_instr_hook(&self, vm: &AvrVm, instr: &Instruction) -> Result<(), CpuSignal> {
-        if self.hw_breakpoints.contains(&vm.pc) {
+        if self.hw_breakpoints.contains(&vm.core.pc) {
             return Err(CpuSignal::Break)
         }
 
         if self.trace {
-            let sreg = vm.read_sreg();
+            let sreg = vm.core.read_sreg();
             let mut flags = String::new();
             let flags_chars: Vec<char> = "CZNVSHTI".chars().collect();
             for i in 0..8 {
@@ -45,8 +43,8 @@ impl AvrDebugger {
             }
 
             println!(
-                "{:06x} / {:>3} / {:>8}: {}",
-                vm.pc * 2, vm.cycles, flags, instr.dump());
+                "{:06x} / {:>3} / {:>8} / {:04x}: {}",
+                vm.core.pc * 2, vm.core.cycles, flags, vm.core.sp, instr.dump());
         }
 
         Ok(())

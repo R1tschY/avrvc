@@ -14,3 +14,4 @@ futures = "0.1"
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"
+time = "*"

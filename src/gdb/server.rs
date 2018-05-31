@@ -13,11 +13,8 @@ use gdb::commands::GdbCommands;
 use gdb::debugger::GdbDebugger;
 use futures::{Async, Poll, Future, Stream, Sink};
 use std::net::SocketAddr;
-use core::AvrVmInfo;
 use gdb::debugger::DebuggerState::{Stopped, Running};
 use core::AvrVm;
-use models::AvrModel;
-use bytes::Bytes;
 
 
 type Tx = mpsc::UnboundedSender<GdbServerPkt>;
@@ -64,14 +61,18 @@ impl Future for RemoteServer {
                         // poll server rx
                         match self.server_rx.poll().unwrap() {
                             Async::Ready(Some(msg)) => {
+                                // new message
                                 self.execute_command(&msg);
                                 if self.debugger.get_state() != Running {
                                     break;
                                 }
                             },
-                            Async::Ready(None) => return Ok(Async::Ready(())),
+                            Async::Ready(None) => {
+                                // server RX closed
+                                return Ok(Async::Ready(()))
+                            },
                             Async::NotReady => {
-                                // do nothing
+                                // no message
                             }
                         }
                     },
@@ -103,7 +104,7 @@ impl RemoteServer {
             client_tx,
             server_rx,
             client_rx: Arc::new(Mutex::new(client_rx)),
-            server_tx: server_tx,
+            server_tx,
             debugger: GdbDebugger::new(vm),
             commands: GdbCommands::new()
         }

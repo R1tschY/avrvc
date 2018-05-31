@@ -4,16 +4,103 @@ use std::collections::HashMap;
 use byte_convert::u16le;
 
 
-fn encode_26(d: u8, k: u8) -> u16 {
-    (k as u16 & 0x0F) | ((k as u16 & 0x30) << 2) | ((d as u16) << 4)
-}
-
-fn encode_55(d: u8, r: u8) -> u16 {
-    ((r as u16 & 0b10000) << 5) | (r as u16 & 0b1111) | ((d as u16) << 4)
-}
-
 fn encode_56(r: u8, a: u8) -> u16 {
     ((a as u16 & 0b110000) << 5) | (a as u16 & 0b1111) | ((r as u16) << 4)
+}
+
+fn add_instr26(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for &d in [24u8, 26u8, 28u8, 30u8].iter() {
+        for k in 0..64u8 {
+            instr16.insert(
+                base | (k as u16 & 0x0F) | ((k as u16 & 0x30) << 2) | (((d as u16 - 24) / 2) << 4),
+                factory(d, k));
+        }
+    }
+}
+
+
+fn add_instr55(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 0..32u8 {
+        for r in 0..32u8 {
+            instr16.insert(
+                base | ((r as u16 & 0b10000) << 5) | (r as u16 & 0b1111) | ((d as u16) << 4),
+                factory(d, r));
+        }
+    }
+}
+
+fn add_stdldd(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for r in 0..32u8 {
+        for q in 0..64u8 {
+            instr16.insert(
+                base | ((q as u16 & 0b100000) << 8) | ((q as u16 & 0b11000) << 7)
+                    | (q as u16 & 0b111) | ((r as u16) << 4),
+                factory(r, q));
+        }
+    }
+}
+
+fn add_instr35(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for b in 0..8u8 {
+        for r in 0..32u8 {
+            instr16.insert(
+                base | ((r as u16) << 4) | (b as u16),
+                factory(r, b));
+        }
+    }
+}
+
+fn add_instr48(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 16..32u8 {
+        for k in 0..256 {
+            instr16.insert(
+                base
+                    | (k as u16 & 0xF0) << 4
+                    | ((d - 16) as u16) << 4
+                    | (k as u16 & 0x0F) << 0,
+                factory(d, k as u8));
+        }
+    }
+}
+
+fn add_instr5(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8) -> Instruction
+) {
+    for d in 0..32u8 {
+        instr16.insert(base | ((d as u16) << 4), factory(d));
+    }
+}
+
+fn add_instr7(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(i8) -> Instruction
+) {
+    for k in -64i8..64i8 {
+        instr16.insert(base | (((k & 0x7F) as u16) << 3), factory(k));
+    }
 }
 
 pub struct AvrDecoder {
@@ -25,56 +112,53 @@ impl AvrDecoder {
     pub fn new() -> AvrDecoder {
         let mut instr16 = HashMap::new();
 
-        instr16.insert(0b_1001_0100_1111_1000_u16, Instruction::Cli);
+        instr16.insert(0, Instruction::Nop);
         instr16.insert(0b_1001_0101_0000_1000_u16, Instruction::Ret);
+        instr16.insert(0b_1001_0101_1001_1000_u16, Instruction::Break);
+        instr16.insert(0b_1001_0100_1111_1000_u16, Instruction::Cli);
 
-        // ADC
-        for d in 0..32u8 {
-            for r in 0..32u8 {
-                instr16.insert(
-                    0b_0001_1100_0000_0000_u16 | encode_55(d, r),
-                    Instruction::Adc { d, r });
-            }
-        }
+        add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Instruction::Com { d });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Instruction::Pop { r });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1111_u16, |r| Instruction::Push { r });
 
-        // ADD
-        for d in 0..32u8 {
-            for r in 0..32u8 {
-                instr16.insert(
-                    0b_0000_1100_0000_0000_u16 | encode_55(d, r),
-                    Instruction::Adc { d, r });
-            }
-        }
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0000_u16, |k| Instruction::Brcc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0000_u16, |k| Instruction::Brcs { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0001_u16, |k| Instruction::Breq { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0100_u16, |k| Instruction::Brge { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0101_u16, |k| Instruction::Brhc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0101_u16, |k| Instruction::Brhs { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0111_u16, |k| Instruction::Brid { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0111_u16, |k| Instruction::Brie { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0100_u16, |k| Instruction::Brlt { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0010_u16, |k| Instruction::Brmi { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0001_u16, |k| Instruction::Brne { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0010_u16, |k| Instruction::Brpl { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0110_u16, |k| Instruction::Brtc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0110_u16, |k| Instruction::Brts { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0011_u16, |k| Instruction::Brvc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0011_u16, |k| Instruction::Brvs { k });
 
-        // ADIW
-        for &d in [24u8, 26u8, 28u8, 30u8].iter() {
-            for k in 0..64u8 {
-                instr16.insert(
-                    0b_0000_1100_0000_0000_u16 | encode_26((d - 24) / 2, k),
-                    Instruction::Adiw { d, k });
-            }
-        }
+        add_instr26(&mut instr16, 0b_1001_0111_0000_0000_u16, |d, k| Instruction::Sbiw { d, k });
+        add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Instruction::Adiw { d, k });
 
-        // LDI
-        for d in 16..32u8 {
-            for k in 0..256 {
-                instr16.insert(
-                    0b_1110_0000_0000_0000_u16
-                        | (k as u16 & 0xF0) << 4
-                        | ((d - 16) as u16) << 4
-                        | (k as u16 & 0x0F) << 0,
-                    Instruction::Ldi { d, k: k as u8 });
-            }
-        }
+        add_instr35(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Instruction::Sbrc { r, b });
 
-        // EOR
-        for d in 0..32u8 {
-            for r in 0..32u8 {
-                instr16.insert(
-                    0b_0010_0100_0000_0000_u16 | encode_55(d, r),
-                    Instruction::Eor { d, r });
-            }
-        }
+        add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Instruction::Cpi { d, k });
+        add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Instruction::Sbci { d, k });
+        add_instr48(&mut instr16, 0b_1110_0000_0000_0000_u16, |d, k| Instruction::Ldi { d, k });
+
+        add_instr55(&mut instr16, 0b_0000_0100_0000_0000_u16, |d, r| Instruction::Cpc { d, r });
+        add_instr55(&mut instr16, 0b_0000_1100_0000_0000_u16, |d, r| Instruction::Add { d, r });
+        add_instr55(&mut instr16, 0b_0001_0100_0000_0000_u16, |d, r| Instruction::Cp { d, r });
+        add_instr55(&mut instr16, 0b_0001_1100_0000_0000_u16, |d, r| Instruction::Adc { d, r });
+        add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Instruction::Eor { d, r });
+        add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Instruction::Mov { d, r });
+
+        add_stdldd(&mut instr16, 0b_1000_0010_0000_1000_u16, |r, q| Instruction::StdY { r, q });
+        add_stdldd(&mut instr16, 0b_1000_0010_0000_0000_u16, |r, q| Instruction::StdZ { r, q });
+        add_stdldd(&mut instr16, 0b_1000_0000_0000_1000_u16, |d, q| Instruction::LddY { d, q });
+        add_stdldd(&mut instr16, 0b_1000_0000_0000_0000_u16, |d, q| Instruction::LddZ { d, q });
+
 
         // OUT
         for r in 0..32u8 {
@@ -89,7 +173,7 @@ impl AvrDecoder {
         for k in -2048i16..2048i16 {
             instr16.insert(
                 0b_1100_0000_0000_0000_u16 | (k & 0x0FFF) as u16,
-                Instruction::Rjmp { k: k * 2 });
+                Instruction::Rjmp { k });
         }
 
         // IN
@@ -99,20 +183,6 @@ impl AvrDecoder {
                     0b_1011_0000_0000_0000_u16 | encode_56(d, a),
                     Instruction::In { d, a });
             }
-        }
-
-        // POP
-        for r in 0..32u8 {
-            instr16.insert(
-                0b_1001_0000_0000_1111_u16 | ((r as u16) << 4),
-                Instruction::Pop { r });
-        }
-
-        // PUSH
-        for r in 0..32u8 {
-            instr16.insert(
-                0b_1001_0010_0000_1111_u16 | ((r as u16) << 4),
-                Instruction::Push { r });
         }
 
         AvrDecoder { instr16 }
@@ -129,15 +199,12 @@ impl AvrDecoder {
         let b1: u8 = bytes[pos + 1];
         let w0 = u16le(b0, b1);
 
-        match b1 {
-            0b10010100 | 0b10010101 => {
-                match b0 & 0b1110 {
-                    0b1100 => return Instruction::Jmp { k: self.decode_jump_call(bytes, pos, w0) },
-                    0b1110 => return Instruction::Call { k: self.decode_jump_call(bytes, pos, w0) },
-                    _ => { }
-                }
-            },
-            _ => { }
+        if b1 & 0b11111110 == 0b10010100 {
+            match b0 & 0b1110 {
+                0b1100 => return Instruction::Jmp { k: self.decode_jump_call(bytes, pos, w0) },
+                0b1110 => return Instruction::Call { k: self.decode_jump_call(bytes, pos, w0) },
+                _ => { }
+            }
         }
 
         match self.instr16.get(&w0) {
@@ -157,6 +224,14 @@ impl AvrDecoder {
             ((w0 as usize & 0b111110000) << 13)
                 | ((w0 as usize & 0x1) << 16)
                 | w1 as usize
+        )
+    }
+
+    pub fn is_2word_instruction(opcode: u16) -> bool {
+        (
+            ((opcode >> 8) & 0b11111110 == 0b10010100) && (opcode & 0b1100 == 0b1100)
+        ) || (
+            ((opcode >> 8) & 0b11111100 == 0b10010000) && (opcode & 0b1111 == 0b0000)
         )
     }
 }
@@ -187,5 +262,21 @@ mod tests {
         let bytes = vec![0x08u8, 0x95u8];
         let instr = decoder.decode(&bytes, 0);
         assert_eq!(instr, Instruction::Ret);
+    }
+
+    #[test]
+    fn test_sbiw() {
+        let decoder = AvrDecoder::new();
+        let bytes = vec![0x00u8, 0x97u8];
+        let instr = decoder.decode(&bytes, 0);
+        assert_eq!(instr, Instruction::Sbiw { d: 24, k: 0 });
+    }
+
+    #[test]
+    fn test_brhs() {
+        let decoder = AvrDecoder::new();
+        let bytes = vec![0x05u8, 0xf0u8];
+        let instr = decoder.decode(&bytes, 0);
+        assert_eq!(instr, Instruction::Brhs { k: 0 });
     }
 }
