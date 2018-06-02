@@ -56,6 +56,7 @@ pub enum Instruction {
 use instruction_set::Instruction::*;
 use decoder::AvrDecoder;
 use byte_convert::u16le;
+use core::DataMemoryType;
 
 fn set_zns(state: &mut AvrVm, res: u8) {
     state.core.n = (res >> 7) != 0;
@@ -84,6 +85,26 @@ fn rjmp(vm: &mut AvrVm, k: i32) -> Result<(), CpuSignal> {
         vm.core.pc = new_pc as usize;
         vm.core.cycles += 1;
         Ok(())
+    }
+}
+
+fn ldd(vm: &mut AvrVm, yz: u16, q: u8, d: u8) {
+    let yzq = match vm.read(yz as usize + q as usize, false) {
+        Ok((yzq, DataMemoryType::SRam)) => {
+            vm.core.cycles += 1;
+            yzq
+        },
+        Ok((_, DataMemoryType::Eeprom)) => 0,
+        Ok((yzq, _)) => yzq,
+        Err(_) => 0,
+    };
+    vm.core.write_reg(d, yzq);
+    if q != 0 {
+        if vm.info.xmega {
+            vm.core.cycles += 1;
+        } else {
+            vm.core.cycles += 2;
+        }
     }
 }
 
@@ -226,29 +247,11 @@ impl Instruction {
 
             &LddY { q, d } => {
                 let y = state.core.read_y();
-                let yq = state.read_u8_noneeprom(y as usize + q as usize, false);
-                state.core.write_reg(d, yq);
-                if q != 0 {
-                    if state.info.xmega {
-                        state.core.cycles += 1;
-                    } else {
-                        state.core.cycles += 2;
-                    }
-                }
-                // TODO: extra cycle when reading SRAM
+                ldd(state, y, q, d);
             }
             &LddZ { q, d } => {
                 let z = state.core.read_z();
-                let zq = state.read_u8_noneeprom(z as usize + q as usize, false);
-                state.core.write_reg(d, zq);
-                if q != 0 {
-                    if state.info.xmega {
-                        state.core.cycles += 1;
-                    } else {
-                        state.core.cycles += 2;
-                    }
-                }
-                // TODO: extra cycle when reading SRAM
+                ldd(state, z, q, d);
             },
 
             &Ldi { d, k } => {

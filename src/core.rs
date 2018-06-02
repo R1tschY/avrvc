@@ -30,7 +30,7 @@ pub enum AccessError {
 }
 
 pub enum DataMemoryType {
-    Ram, XRam, Eeprom, Reserved
+    SRam, XRam, Eeprom, Io, Register, Reserved
 }
 
 pub type IoReadFunc = Box<Fn(&AvrCoreState, usize, bool) -> u8 + Send>;
@@ -307,7 +307,37 @@ impl AvrVm {
         }
     }
 
-    pub fn read(&self, addr: usize, view: bool) -> Result<u8, AccessError> {
+    pub fn read(&self, addr: usize, view: bool) -> Result<(u8, DataMemoryType), AccessError> {
+        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+            Ok((self.core.ram[addr - self.core.ram_offset], DataMemoryType::SRam))
+        } else if addr < self.io_reg_state.len() {
+            Ok((self.read_io(addr, view), DataMemoryType::Io))
+        } else if addr > self.core.eeprom_offset
+            && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+            Ok((self.core.eeprom[addr - self.core.eeprom_offset], DataMemoryType::Eeprom))
+        } else {
+            Err(AccessError::ReadError(addr))
+        }
+    }
+
+    pub fn write(&mut self, addr: usize, value: u8) -> Result<DataMemoryType, AccessError> {
+        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+            let offset = self.core.ram_offset;
+            self.core.ram[addr - offset] = value;
+            Ok(DataMemoryType::SRam)
+        } else if addr < self.io_reg_state.len() {
+            self.write_io(addr, value);
+            Ok(DataMemoryType::Io)
+        } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+            let offset = self.core.eeprom_offset;
+            self.core.eeprom[addr - offset] = value;
+            Ok(DataMemoryType::Eeprom)
+        } else {
+            return Err(AccessError::WriteError(addr));
+        }
+    }
+
+    pub fn mem_ref(&self, addr: usize, view: bool) -> Result<u8, AccessError> {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             Ok(self.core.ram[addr - self.core.ram_offset])
         } else if addr < self.io_reg_state.len() {
@@ -320,7 +350,7 @@ impl AvrVm {
         }
     }
 
-    pub fn write(&mut self, addr: usize, value: u8) -> Result<(), AccessError> {
+    pub fn mut_mem_ref(&mut self, addr: usize, value: u8) -> Result<(), AccessError> {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;

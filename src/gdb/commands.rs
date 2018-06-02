@@ -208,7 +208,7 @@ fn memread_command(pkt: &[u8], dbg: &mut GdbDebugger) -> Result<Bytes, GdbError>
         let memstart = start - RAM_OFFSET;
         let memend = end - RAM_OFFSET;
         let memory: Vec<u8> = (memstart..memend)
-            .map(|addr| dbg.vm.read(addr, true).unwrap_or(0)).collect();
+            .map(|addr| dbg.vm.read(addr, true).map(|(res, _)| res).unwrap_or(0)).collect();
 
         Ok(Bytes::from(hex::encode(&memory)))
     } else {
