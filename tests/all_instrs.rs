@@ -25,6 +25,10 @@ fn all_instrs() {
         if act != "invalid" { // TODO: remove if we support all
             assert_eq!(act, exp);
         }
+
+        if exp.starts_with(".word") {
+            assert_eq!(act, "invalid");
+        }
     }
 
     assert_eq!(actual_lines.len(), 65537);
@@ -34,6 +38,7 @@ fn all_instrs() {
     let decoded_act = actual_lines.iter().filter(|&&s| s != "invalid").count();
     let decoded_exp = expected_lines.iter().filter(|&&s| !s.starts_with(".word")).count();
 
+    assert_eq!(decoded_exp, 63983);
     println!("actual: decoded {} out of {}", decoded_act, 65537);
     println!("expected: decoded {} out of {}", decoded_exp, 65537);
 }
