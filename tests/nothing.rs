@@ -46,12 +46,12 @@ fn run_nothing() {
         }
     }
 
-    assert_eq!(vm.read_u8(0x3FFF - 0), 0x0c);
-    assert_eq!(vm.read_u8(0x3FFF - 1), 0x01);
-    assert_eq!(vm.read_u8(0x3FFF - 2), 0x00);
-    assert_eq!(vm.read_u8(0x3FFF - 3), 0xff);
-    assert_eq!(vm.read_u8(0x3FFF - 4), 0x3f);
-    assert_eq!(vm.read_u8(0x3FFF - 5), 0x00);
+    assert_eq!(vm.read_unchecked(0x3FFF - 0, true), 0x0c);
+    assert_eq!(vm.read_unchecked(0x3FFF - 1, true), 0x01);
+    assert_eq!(vm.read_unchecked(0x3FFF - 2, true), 0x00);
+    assert_eq!(vm.read_unchecked(0x3FFF - 3, true), 0xff);
+    assert_eq!(vm.read_unchecked(0x3FFF - 4, true), 0x3f);
+    assert_eq!(vm.read_unchecked(0x3FFF - 5, true), 0x00);
     assert_eq!(vm.core.pc, 0x11A);
     assert_eq!(vm.core.sp, 0x3fff);
     assert!(vm.core.cycles >= 37 && vm.core.cycles <= 40);

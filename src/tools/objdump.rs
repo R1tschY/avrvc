@@ -7,7 +7,7 @@ pub trait ObjDumpInstr {
     fn dump(&self) -> String;
 }
 
-fn format_calljmp(mnemonic: &str, k: usize) -> String {
+fn format_calljmp(mnemonic: &str, k: u32) -> String {
     if k == 0 {
         format!("{}\t0", mnemonic)
     } else {

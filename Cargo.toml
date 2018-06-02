@@ -14,6 +14,7 @@ log = "0.4"
 stderrlog = "0.4"
 futures = "0.1"
 hex = "0.3"
+itertools = "0.7"
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"

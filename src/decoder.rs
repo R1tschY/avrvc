@@ -228,8 +228,10 @@ impl Decoder for AvrDecoder {
 
         if b1 & 0b11111110 == 0b10010100 {
             match b0 & 0b1110 {
-                0b1100 => return Instruction::Jmp { k: self.decode_jump_call(bytes, pos, w0) },
-                0b1110 => return Instruction::Call { k: self.decode_jump_call(bytes, pos, w0) },
+                0b1100 => return Instruction::Jmp {
+                    k: self.decode_jump_call(bytes, pos, w0) as u32 },
+                0b1110 => return Instruction::Call {
+                    k: self.decode_jump_call(bytes, pos, w0) as u32 },
                 _ => { }
             }
         }

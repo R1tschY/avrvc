@@ -25,7 +25,7 @@ pub enum Instruction {
     Brts { k: i8 },
     Brvc { k: i8 },
     Brvs { k: i8 },
-    Call { k: usize },
+    Call { k: u32 },
     Cli,
     Com { d: u8 },
     Cp { d: u8, r: u8},
@@ -36,7 +36,7 @@ pub enum Instruction {
     LddZ { q: u8, d: u8 },
     Ldi { d: u8, k: u8 },
     In  { d: u8, a: u8 },
-    Jmp { k: usize },
+    Jmp { k: u32 },
     Mov { d: u8, r: u8 },
     Nop,
     Out { r: u8, a: u8 },
@@ -157,7 +157,7 @@ impl Instruction {
                         state.core.cycles += 3;
                     }
                 }
-                state.core.pc = k;
+                state.core.pc = k as usize;
             },
 
             &Cli => state.core.interrupt = false,
@@ -208,12 +208,12 @@ impl Instruction {
             },
 
             &In { d, a } => {
-                let io = state.read_io(a as usize);
+                let io = state.read_io(a as usize, false);
                 state.core.write_reg(d, io);
             },
 
             &Jmp { k } => {
-                state.core.pc = k;
+                state.core.pc = k as usize;
                 state.core.cycles += 2;
             },
 
@@ -226,7 +226,7 @@ impl Instruction {
 
             &LddY { q, d } => {
                 let y = state.core.read_y();
-                let yq = state.read_u8_noneeprom(y as usize + q as usize);
+                let yq = state.read_u8_noneeprom(y as usize + q as usize, false);
                 state.core.write_reg(d, yq);
                 if q != 0 {
                     if state.info.xmega {
@@ -239,7 +239,7 @@ impl Instruction {
             }
             &LddZ { q, d } => {
                 let z = state.core.read_z();
-                let zq = state.read_u8_noneeprom(z as usize + q as usize);
+                let zq = state.read_u8_noneeprom(z as usize + q as usize, false);
                 state.core.write_reg(d, zq);
                 if q != 0 {
                     if state.info.xmega {
@@ -365,6 +365,7 @@ mod tests {
     use super::*;
     use models::xmega_au::XmegaA4U::ATxmega128A4U;
     use models::AvrModel;
+    use std::mem;
 
     #[test]
     fn execute_call_xmega() {
@@ -376,9 +377,9 @@ mod tests {
         cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.core.sp, old_sp - 3);
-        assert_eq!(vm.read_u8(old_sp - 0), 0xCE);
-        assert_eq!(vm.read_u8(old_sp - 1), 0xBB);
-        assert_eq!(vm.read_u8(old_sp - 2), 0xAA);
+        assert_eq!(vm.read_unchecked(old_sp - 0, true), 0xCE);
+        assert_eq!(vm.read_unchecked(old_sp - 1, true), 0xBB);
+        assert_eq!(vm.read_unchecked(old_sp - 2, true), 0xAA);
         assert_eq!(vm.core.pc, 0x1337);
         assert_eq!(vm.core.cycles, 4);
     }
@@ -412,9 +413,9 @@ mod tests {
 
         vm.core.sp -= 3;
         let sp = vm.core.sp;
-        vm.write_u8(sp + 1, 0xAAu8);
-        vm.write_u8(sp + 2, 0xBBu8);
-        vm.write_u8(sp + 3, 0xCCu8);
+        vm.write_unchecked(sp + 1, 0xAAu8);
+        vm.write_unchecked(sp + 2, 0xBBu8);
+        vm.write_unchecked(sp + 3, 0xCCu8);
 
         let cmd = Ret;
         cmd.execute(&mut vm).unwrap();
@@ -427,7 +428,7 @@ mod tests {
     fn execute_in() {
         let mut vm = ATxmega128A4U.create_vm();
 
-        vm.write_u8(33, 0x42u8);
+        vm.write_unchecked(33, 0x42u8);
 
         let cmd = In { d: 26, a: 33 };
         cmd.execute(&mut vm).unwrap();
@@ -445,7 +446,7 @@ mod tests {
         let cmd = Out { r: 30, a: 15 };
         cmd.execute(&mut vm).unwrap();
 
-        assert_eq!(vm.read_u8(15), 0x76u8);
+        assert_eq!(vm.read_unchecked(15, true), 0x76u8);
         assert_eq!(vm.core.cycles, 1);
     }
 
@@ -457,5 +458,10 @@ mod tests {
         cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.core.read_reg(17), 42);
+    }
+
+    #[test]
+    fn instr_size() {
+        assert_eq!(mem::size_of::<Instruction>(), 8);
     }
 }

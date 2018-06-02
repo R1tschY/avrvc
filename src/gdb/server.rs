@@ -13,12 +13,12 @@ use gdb::commands::GdbCommands;
 use gdb::debugger::GdbDebugger;
 use futures::{Async, Poll, Future, Stream, Sink};
 use std::net::SocketAddr;
-use gdb::debugger::DebuggerState::{Stopped, Running};
 use core::AvrVm;
+use gdb::TcpListenerExt;
 
 
-type Tx = mpsc::UnboundedSender<GdbServerPkt>;
-type Rx = mpsc::UnboundedReceiver<GdbServerPkt>;
+pub type Tx = mpsc::UnboundedSender<GdbServerPkt>;
+pub type Rx = mpsc::UnboundedReceiver<GdbServerPkt>;
 
 
 struct LockedStream<S: ?Sized>(Arc<Mutex<S>>);
@@ -46,6 +46,8 @@ impl Future for RemoteServer {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        use gdb::debugger::DebuggerState::*;
+
         loop {
             match self.debugger.get_state() {
                 Running =>
@@ -54,7 +56,6 @@ impl Future for RemoteServer {
                         if !self.debugger.step() {
                             self.client_tx.start_send(
                                 GdbServerPkt::Packet(self.debugger.signal_reply())).unwrap();
-                            self.debugger.set_state(Stopped);
                             break;
                         }
 
@@ -79,16 +80,17 @@ impl Future for RemoteServer {
 
                 Stopped =>
                     match self.server_rx.poll().unwrap() {
-                        Async::Ready(Some(msg)) => {
-                            self.execute_command(&msg);
-                        },
-                        Async::Ready(None) => {
-                            return Ok(Async::Ready(()))
-                        },
-                        Async::NotReady => {
-                            return Ok(Async::NotReady)
-                        }
-                    }
+                        Async::Ready(Some(msg)) => self.execute_command(&msg),
+                        Async::Ready(None) => return Ok(Async::Ready(())),
+                        Async::NotReady => return Ok(Async::NotReady),
+                    },
+
+                Detached | Killed => {
+                    // TODO: Detached -> let it run
+                    self.server_rx.close();
+                    self.client_rx.lock().unwrap().close();
+                    return Ok(Async::Ready(()))
+                },
             }
         }
     }
@@ -99,6 +101,7 @@ impl RemoteServer {
     pub fn new(vm: AvrVm) -> Self {
         let (client_tx, client_rx) = mpsc::unbounded();
         let (server_tx, server_rx) = mpsc::unbounded();
+        let client_tx_copy = client_tx.clone();
 
         RemoteServer {
             client_tx,
@@ -106,7 +109,7 @@ impl RemoteServer {
             client_rx: Arc::new(Mutex::new(client_rx)),
             server_tx,
             debugger: GdbDebugger::new(vm),
-            commands: GdbCommands::new()
+            commands: GdbCommands::new(client_tx_copy)
         }
     }
 
@@ -129,29 +132,30 @@ pub fn serve(vm: AvrVm, addr: &SocketAddr, runtime: &mut Runtime) {
     let server_tx = server.server_tx.clone();
 
     let client = socket
-        .incoming()
+        .first_incoming()  // TODO: accept only one client at a time
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
-        .for_each(move |socket| {
+        .and_then(move |socket| {
+            debug!("accepted client");
             let framed = socket.framed(GdbServerCodec::new());
             let (writer, reader) = framed.split();
 
             tokio::spawn(
                 server_tx
                     .clone()
-                    .sink_map_err(|_| ())
-                    .send_all(reader.map_err(|_| ()))
-                    .then(|_| Ok(())));
+                    .sink_map_err(|_| ()) // TODO: error handling
+                    .send_all(reader.map_err(|_| ())) // TODO: error handling
+                    .then(|_| Ok(()))); // TODO: error handling
 
             let client_rx = client_rx.clone();
             tokio::spawn(
                 writer
-                    .sink_map_err(|_| ())
-                    .send_all(LockedStream(client_rx).map_err(|_| ()))
-                    .then(|_| Ok(())))
+                    .sink_map_err(|_| ()) // TODO: error handling
+                    .send_all(LockedStream(client_rx).map_err(|_| ())) // TODO: error handling
+                    .then(|_| Ok(()))) // TODO: error handling
         });
 
     let debugger = server.map_err(|err| {
-        println!("ERROR: {:?}", err);
+        error!("server error: {}", err);
     });
 
     // Start the runtime and spin up the server

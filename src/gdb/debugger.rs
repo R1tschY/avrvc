@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use controller::AvrController;
 use core::AvrVm;
 use core::CpuSignal;
 use bytes::{BytesMut, BufMut};
@@ -18,22 +17,21 @@ pub const SIGTRAP: u32 = 5;
 #[derive(Copy, Clone, PartialEq)]
 pub enum DebuggerState {
     Running,
-    Stopped
+    Stopped,
+    Detached,
+    Killed
 }
 
 pub struct GdbDebugger {
-    pub vc: AvrController,
+    pub vm: AvrVm,
     state: DebuggerState,
     last_signal: u32
 }
 
-
-
-
 impl GdbDebugger {
     pub fn new(vm: AvrVm) -> Self {
         GdbDebugger {
-            vc: AvrController { core: vm },
+            vm,
             state: DebuggerState::Stopped,
             last_signal: SIGTRAP
         }
@@ -53,10 +51,11 @@ impl GdbDebugger {
     ///
     /// returns `false` if signal raised while executing. See `last_signal` member.
     pub fn step(&mut self) -> bool {
-        match self.vc.step() {
+        match self.vm.step() {
             Ok(_) => true,
             Err(signal) => {
                 self.last_signal = self.get_signal_code(signal);
+                self.state = DebuggerState::Stopped;
                 false
             }
         }
@@ -68,11 +67,11 @@ impl GdbDebugger {
 
     pub fn read_register(&self, reg: u32, bytes: &mut BytesMut) {
         match reg {
-            0...31 => bytes.put(format!("{:02x}", self.vc.core.core.read_reg(reg as u8))),
-            32 => bytes.put(format!("{:02x}", self.vc.core.core.read_sreg())),
-            33 => bytes.put(hex::encode((self.vc.core.core.sp as u16).as_bytes::<LittleEndian>())),
+            0...31 => bytes.put(format!("{:02x}", self.vm.core.read_reg(reg as u8))),
+            32 => bytes.put(format!("{:02x}", self.vm.core.read_sreg())),
+            33 => bytes.put(hex::encode((self.vm.core.sp as u16).as_bytes::<LittleEndian>())),
             34 => {
-                let pc = (self.vc.core.core.pc as u32) * 2;
+                let pc = (self.vm.core.pc as u32) * 2;
                 bytes.put(hex::encode(pc.as_bytes::<LittleEndian>()))
             },
             _ => () // TODO: Error

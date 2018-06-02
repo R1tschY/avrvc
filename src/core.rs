@@ -8,7 +8,8 @@ use byte_convert::u16le;
 use byte_convert::u8bits;
 use byte_convert::read_u16le;
 use std::collections::HashMap;
-use byte_convert::write_u16le;
+use models::register_service::McuIoRegistersService;
+use models::register_service::IoRegAddrs;
 
 /// Signals send by cpu
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -23,7 +24,16 @@ pub enum CpuSignal {
     Break,
 }
 
-pub type IoReadFunc = Box<Fn(&AvrCoreState, usize) -> u8 + Send>;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AccessError {
+    ReadError(usize), WriteError(usize),
+}
+
+pub enum DataMemoryType {
+    Ram, XRam, Eeprom, Reserved
+}
+
+pub type IoReadFunc = Box<Fn(&AvrCoreState, usize, bool) -> u8 + Send>;
 pub type IoWriteFunc = Box<Fn(&mut AvrCoreState, usize, u8) + Send>;
 
 pub struct AvrCoreState {
@@ -64,10 +74,10 @@ pub struct AvrCoreState {
     pub flash: Vec<u8>,
 
     ram_offset: usize,
-    ram: Vec<u8>,
+    pub ram: Vec<u8>,
 
     eeprom_offset: usize,
-    eeprom: Vec<u8>,
+    pub eeprom: Vec<u8>,
 }
 
 impl AvrCoreState {
@@ -180,23 +190,23 @@ impl AvrVm {
         self.core.sp -= 3;
 
         let sp = self.core.sp;
-        self.write_u8(sp + 1, (v >> 16) as u8);
-        self.write_u8(sp + 2, (v >> 8) as u8);
-        self.write_u8(sp + 3, v as u8);
+        self.write_unchecked(sp + 1, (v >> 16) as u8);
+        self.write_unchecked(sp + 2, (v >> 8) as u8);
+        self.write_unchecked(sp + 3, v as u8);
     }
 
     pub fn push2(&mut self, v: u16) {
         self.core.sp -= 2;
 
         let sp = self.core.sp;
-        self.write_u8(sp + 1, (v >> 8) as u8);
-        self.write_u8(sp + 2, v as u8);
+        self.write_unchecked(sp + 1, (v >> 8) as u8);
+        self.write_unchecked(sp + 2, v as u8);
     }
 
     pub fn push(&mut self, v: u8) {
         self.core.sp -= 1;
         let sp = self.core.sp;
-        self.write_u8(sp + 1, v);
+        self.write_unchecked(sp + 1, v);
     }
 
     pub fn pop3(&mut self) -> u32 {
@@ -205,9 +215,9 @@ impl AvrVm {
         let sp = self.core.sp;
         u32be(
             0,
-            self.read_u8(sp - 2),
-            self.read_u8(sp - 1),
-            self.read_u8(sp + 0),
+            self.read_unchecked(sp - 2, false),
+            self.read_unchecked(sp - 1, false),
+            self.read_unchecked(sp + 0, false),
         )
     }
 
@@ -216,18 +226,18 @@ impl AvrVm {
 
         let sp = self.core.sp;
         u16be(
-            self.read_u8(sp - 1),
-            self.read_u8(sp + 0),
+            self.read_unchecked(sp - 1, false),
+            self.read_unchecked(sp + 0, false),
         )
     }
 
     pub fn pop(&mut self) -> u8 {
         self.core.sp += 1;
 
-        self.read_u8(self.core.sp)
+        self.read_unchecked(self.core.sp, false)
     }
 
-    pub fn write_flash(&mut self, addr: usize, data: &[u8]) {
+    pub fn write_flash(&mut self, addr: usize, data: &[u8]) { // TODO: Result<(), WriteError>
         self.core.flash[addr..addr+data.len()].copy_from_slice(&data);
         self.decoder.refresh(&self.core.flash);
     }
@@ -245,10 +255,10 @@ impl AvrVm {
         self.io_regs_w.insert(addr, func);
     }
 
-    pub fn read_io(&self, addr: usize) -> u8 {
+    pub fn read_io(&self, addr: usize, view: bool) -> u8 {
         if addr < self.io_reg_state.len() {
             match self.io_regs_r.get(&addr) {
-                Some(func) => func(&self.core, addr),
+                Some(func) => func(&self.core, addr, view),
                 None => self.io_reg_state[addr]
             }
         } else {
@@ -269,11 +279,11 @@ impl AvrVm {
         }
     }
 
-    pub fn read_u8(&self, addr: usize) -> u8 {
+    pub fn read_unchecked(&self, addr: usize, view: bool) -> u8 {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             self.core.ram[addr - self.core.ram_offset]
         } else if addr < self.io_reg_state.len() {
-            self.io_reg_state[addr]
+            self.read_io(addr, view)
         } else if addr > self.core.eeprom_offset
                 && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             self.core.eeprom[addr - self.core.eeprom_offset]
@@ -283,12 +293,12 @@ impl AvrVm {
         }
     }
 
-    pub fn write_u8(&mut self, addr: usize, value: u8) {
+    pub fn write_unchecked(&mut self, addr: usize, value: u8) {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;
         } else if addr < self.io_reg_state.len() {
-            self.io_reg_state[addr] = value;
+            self.write_io(addr, value);
         } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             let offset = self.core.eeprom_offset;
             self.core.eeprom[addr - offset] = value;
@@ -297,11 +307,40 @@ impl AvrVm {
         }
     }
 
-    pub fn read_u8_noneeprom(&self, addr: usize) -> u8 {
+    pub fn read(&self, addr: usize, view: bool) -> Result<u8, AccessError> {
+        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+            Ok(self.core.ram[addr - self.core.ram_offset])
+        } else if addr < self.io_reg_state.len() {
+            Ok(self.read_io(addr, view))
+        } else if addr > self.core.eeprom_offset
+            && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+            Ok(self.core.eeprom[addr - self.core.eeprom_offset])
+        } else {
+            Err(AccessError::ReadError(addr))
+        }
+    }
+
+    pub fn write(&mut self, addr: usize, value: u8) -> Result<(), AccessError> {
+        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+            let offset = self.core.ram_offset;
+            self.core.ram[addr - offset] = value;
+        } else if addr < self.io_reg_state.len() {
+            self.write_io(addr, value);
+        } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+            let offset = self.core.eeprom_offset;
+            self.core.eeprom[addr - offset] = value;
+        } else {
+            return Err(AccessError::WriteError(addr));
+        }
+
+        Ok(())
+    }
+
+    pub fn read_u8_noneeprom(&self, addr: usize, view: bool) -> u8 {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             self.core.ram[addr - self.core.ram_offset]
         } else if addr < self.io_reg_state.len() {
-            self.io_reg_state[addr]
+            self.read_io(addr, view)
         } else {
             debug_assert!(false, "read from reserved memory: 0x{:08x}", addr);
             0
@@ -313,40 +352,11 @@ impl AvrVm {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;
         } else if addr < self.io_reg_state.len() {
-            self.io_reg_state[addr] = value;
+            self.write_io(addr, value);
         } else {
             debug_assert!(false, "write to reserved memory: 0x{:08x}", addr);
         }
     }
-
-    pub fn read_u16(&self, addr: usize) -> u16 {
-        if addr > self.core.ram_offset && addr + 1 < self.core.ram_offset + self.core.ram.len() {
-            let i = addr - self.core.ram_offset;
-            read_u16le(&self.core.ram[i..])
-        } else if addr + 1 < self.io_reg_state.len() {
-            read_u16le(&self.io_reg_state[addr..])
-        } else if addr > self.core.eeprom_offset && addr + 1 < self.core.eeprom_offset + self.core.eeprom.len() {
-            read_u16le(&self.core.eeprom[addr - self.core.eeprom_offset..])
-        } else {
-            debug_assert!(false, "read from reserved memory: 0x{:08x}", addr);
-            0
-        }
-    }
-
-    pub fn write_u16(&mut self, addr: usize, value: u16) {
-        if addr > self.core.ram_offset && addr + 1 < self.core.ram_offset + self.core.ram.len() {
-            let i = addr - self.core.ram_offset;
-            write_u16le(&mut self.core.ram[i..], value);
-        } else if addr + 1 < self.io_reg_state.len() {
-            write_u16le(&mut self.io_reg_state[addr..], value);
-        } else if addr > self.core.eeprom_offset && addr + 1 < self.core.eeprom_offset + self.core.eeprom.len() {
-            let offset = self.core.eeprom_offset;
-            write_u16le(&mut self.core.eeprom[addr - offset..], value);
-        }  else {
-            debug_assert!(false, "write to reserved memory: 0x{:08x}", addr);
-        }
-    }
-
 
     pub fn crash(&mut self, crash_info: CpuSignal) -> Result<(), CpuSignal> {
         self.core.pc = 0; // reset
@@ -380,5 +390,28 @@ pub struct AvrVmInfo {
 
     pub ram: Range<usize>,
 
-    pub eeprom: Range<usize>
+    pub eeprom: Range<usize>,
+
+    pub io_regs: IoRegAddrs
+}
+
+impl AvrVmInfo {
+    pub fn from_name(name: &str) -> AvrVmInfo {
+        let register_service = McuIoRegistersService::new();
+        let infos = register_service.get_mcu_registers(name).unwrap();
+
+        AvrVmInfo {
+            pc_bytes: if infos.contains_key("#__AVR_3_BYTE_PC__") { 3 } else { 2 },
+            xmega: infos.contains_key("#__AVR_XMEGA__"),
+            reduced_core_tiny: false, // TODO
+            flash_bytes: infos["#FLASHEND"] + 1,
+            ios: *infos.get("#IO_SIZE").unwrap_or(&infos["#RAMSTART"]),
+            ram: infos["#RAMSTART"]..(infos["#RAMEND"] + 1),
+            eeprom: infos
+                .get("#MAPPED_EEPROM_START")
+                .map(|&start| start..(infos["#MAPPED_EEPROM_END"] + 1))
+                .unwrap_or(0..0),
+            io_regs: infos.iter().filter(|&x| !x.0.starts_with('#')).map(|x| (*x.0, *x.1)).collect()
+        }
+    }
 }

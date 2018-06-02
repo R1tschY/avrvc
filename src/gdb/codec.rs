@@ -103,6 +103,7 @@ impl Encoder for GdbServerCodec {
                 buf.put(format!("{:02x}", checksum).as_bytes());
             },
             GdbServerPkt::Ack { okay } => {
+                buf.reserve(1);
                 buf.put(if okay { b'+' } else { b'-' })
 
             },
