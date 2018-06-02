@@ -69,6 +69,11 @@ pub struct AvrCoreState {
     /// carry flag (C)
     pub carry: bool,
 
+    rampd: u8,
+    rampx: u8,
+    rampy: u8,
+    rampz: u8,
+
     /// flash bytes
     /// TODO: write through write_flash
     pub flash: Vec<u8>,
@@ -164,6 +169,10 @@ impl AvrVm {
                 carry: false,
                 cycles: 0,
                 regs: [0; 32],
+                rampd: 0,
+                rampx: 0,
+                rampy: 0,
+                rampz: 0,
 
                 flash: Vec::new(),
 
