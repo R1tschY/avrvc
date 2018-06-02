@@ -119,10 +119,13 @@ impl AvrDecoder {
         instr16.insert(0b_1001_0101_0000_1000_u16, Instruction::Ret);
         instr16.insert(0b_1001_0101_1001_1000_u16, Instruction::Break);
         instr16.insert(0b_1001_0100_1111_1000_u16, Instruction::Cli);
+        instr16.insert(0b_1001_0101_1101_1000_u16, Instruction::Elpm0);
 
         add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Instruction::Com { d });
         add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Instruction::Pop { r });
         add_instr5(&mut instr16, 0b_1001_0010_0000_1111_u16, |r| Instruction::Push { r });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0110_u16, |d| Instruction::Elpm { d });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0111_u16, |d| Instruction::ElpmInc { d });
 
         add_instr7(&mut instr16, 0b_1111_0100_0000_0000_u16, |k| Instruction::Brcc { k });
         add_instr7(&mut instr16, 0b_1111_0000_0000_0000_u16, |k| Instruction::Brcs { k });

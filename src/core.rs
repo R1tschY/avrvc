@@ -10,6 +10,7 @@ use byte_convert::read_u16le;
 use std::collections::HashMap;
 use models::register_service::McuIoRegistersService;
 use models::register_service::IoRegAddrs;
+use byte_convert::u32le;
 
 /// Signals send by cpu
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -102,19 +103,44 @@ impl AvrCoreState {
     pub fn read_y(&self) -> u16 { u16le(self.read_reg(28), self.read_reg(29)) }
     pub fn read_z(&self) -> u16 { u16le(self.read_reg(30), self.read_reg(31)) }
 
+    pub fn read_ramped_x(&self) -> u32 {
+        u32le(self.read_reg(26), self.read_reg(27), self.rampx, 0)
+    }
+    pub fn read_ramped_y(&self) -> u32 {
+        u32le(self.read_reg(28), self.read_reg(29), self.rampy, 0)
+    }
+    pub fn read_ramped_z(&self) -> u32 {
+        u32le(self.read_reg(30), self.read_reg(31), self.rampz, 0)
+    }
+
     pub fn write_x(&mut self, value: u16) {
-        self.write_reg(26, value as u8);
+        self.write_reg(26, (value & 0xFF) as u8);
         self.write_reg(27, (value >> 8) as u8);
     }
 
     pub fn write_y(&mut self, value: u16) {
-        self.write_reg(28, value as u8);
+        self.write_reg(28, (value & 0xFF) as u8);
         self.write_reg(29, (value >> 8) as u8);
     }
 
     pub fn write_z(&mut self, value: u16) {
-        self.write_reg(30, value as u8);
+        self.write_reg(30, (value & 0xFF) as u8);
         self.write_reg(31, (value >> 8) as u8);
+    }
+
+    pub fn write_ramped_x(&mut self, value: u32) {
+        self.write_x((value & 0xFFFF) as u16);
+        self.rampx = ((value >> 16) & 0xFF) as u8;
+    }
+
+    pub fn write_ramped_y(&mut self, value: u32) {
+        self.write_y((value & 0xFFFF) as u16);
+        self.rampy = ((value >> 16) & 0xFF) as u8;
+    }
+
+    pub fn write_ramped_z(&mut self, value: u32) {
+        self.write_z((value & 0xFFFF) as u16);
+        self.rampz = ((value >> 16) & 0xFF) as u8;
     }
 
     pub fn read_sreg(&self) -> u8 {

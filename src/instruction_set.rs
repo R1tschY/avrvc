@@ -31,7 +31,11 @@ pub enum Instruction {
     Cp { d: u8, r: u8},
     Cpc { d: u8, r: u8},
     Cpi { d: u8, k: u8 },
+    Elpm0,
+    Elpm { d: u8 },
+    ElpmInc { d: u8 },
     Eor { d: u8, r: u8 },
+    LddX { q: u8, d: u8 },
     LddY { q: u8, d: u8 },
     LddZ { q: u8, d: u8 },
     Ldi { d: u8, k: u8 },
@@ -47,6 +51,7 @@ pub enum Instruction {
     Sbci { d: u8, k: u8 },
     Sbiw { d: u8, k: u8 },
     Sbrc { r: u8, b: u8 },
+    StdX { q: u8, r: u8 },
     StdY { q: u8, r: u8 },
     StdZ { q: u8, r: u8 },
 
@@ -106,6 +111,15 @@ fn ldd(vm: &mut AvrVm, yz: u16, q: u8, d: u8) {
             vm.core.cycles += 2;
         }
     }
+}
+
+fn elpm(vm: &mut AvrVm, d: u8) -> u32 {
+    let z = vm.core.read_ramped_z() as usize;
+    let r = vm.core.flash[z];
+    vm.core.write_reg(d, r);
+    vm.core.cycles += 2;
+
+    z as u32
 }
 
 impl Instruction {
@@ -220,6 +234,13 @@ impl Instruction {
                 state.core.v = calc_v(rd, k, r);
                 set_zns(state, r);
             }
+
+            &Elpm0 => { elpm(state, 0); },
+            &Elpm { d } => { elpm(state, d); },
+            &ElpmInc { d } => {
+                let z = elpm(state, d);
+                state.core.write_ramped_z(z + 1);
+            },
 
             &Eor { d, r } => {
                 let r: u8 = state.core.read_reg(d) ^ state.core.read_reg(r);
