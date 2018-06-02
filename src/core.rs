@@ -69,10 +69,10 @@ pub struct AvrCoreState {
     /// carry flag (C)
     pub carry: bool,
 
-    rampd: u8,
-    rampx: u8,
-    rampy: u8,
-    rampz: u8,
+    pub rampd: u8,
+    pub rampx: u8,
+    pub rampy: u8,
+    pub rampz: u8,
 
     /// flash bytes
     /// TODO: write through write_flash

@@ -16,7 +16,7 @@ MCUS = [
 ]
 
 IOREGS = [
-    "SREG", "SPH", "SPL",
+    "SREG", "SPH", "SPL", "RAMPD", "RAMPX", "RAMPY", "RAMPZ",
 
     "PORTA", "PORTB", "PORTC", "PORTD",
     "PINA", "PINB", "PINC", "PIND",

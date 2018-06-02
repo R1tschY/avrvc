@@ -65,7 +65,11 @@ impl McuIoRegistersService {
         mcu_atxmega16a4u.insert("SREG", 0x3f);
         mcu_atxmega16a4u.insert("SPH", 0x3e);
         mcu_atxmega16a4u.insert("PORTC", 0x640);
+        mcu_atxmega16a4u.insert("RAMPX", 0x39);
+        mcu_atxmega16a4u.insert("RAMPD", 0x38);
         mcu_atxmega16a4u.insert("PORTA", 0x600);
+        mcu_atxmega16a4u.insert("RAMPZ", 0x3b);
+        mcu_atxmega16a4u.insert("RAMPY", 0x3a);
         mcu_atxmega16a4u.insert("PORTB", 0x620);
         mcu_atxmega16a4u.insert("#FLASHEND", 0x4fff);
         mcu_atxmega16a4u.insert("#__AVR_MEGA__", 0x1);
@@ -86,7 +90,11 @@ impl McuIoRegistersService {
         mcu_atxmega32a4u.insert("SREG", 0x3f);
         mcu_atxmega32a4u.insert("SPH", 0x3e);
         mcu_atxmega32a4u.insert("PORTC", 0x640);
+        mcu_atxmega32a4u.insert("RAMPX", 0x39);
+        mcu_atxmega32a4u.insert("RAMPD", 0x38);
         mcu_atxmega32a4u.insert("PORTA", 0x600);
+        mcu_atxmega32a4u.insert("RAMPZ", 0x3b);
+        mcu_atxmega32a4u.insert("RAMPY", 0x3a);
         mcu_atxmega32a4u.insert("PORTB", 0x620);
         mcu_atxmega32a4u.insert("#FLASHEND", 0x8fff);
         mcu_atxmega32a4u.insert("#__AVR_MEGA__", 0x1);
@@ -107,7 +115,11 @@ impl McuIoRegistersService {
         mcu_atxmega64a4u.insert("SREG", 0x3f);
         mcu_atxmega64a4u.insert("SPH", 0x3e);
         mcu_atxmega64a4u.insert("PORTC", 0x640);
+        mcu_atxmega64a4u.insert("RAMPX", 0x39);
+        mcu_atxmega64a4u.insert("RAMPD", 0x38);
         mcu_atxmega64a4u.insert("PORTA", 0x600);
+        mcu_atxmega64a4u.insert("RAMPZ", 0x3b);
+        mcu_atxmega64a4u.insert("RAMPY", 0x3a);
         mcu_atxmega64a4u.insert("PORTB", 0x620);
         mcu_atxmega64a4u.insert("#FLASHEND", 0x10fff);
         mcu_atxmega64a4u.insert("#__AVR_MEGA__", 0x1);
@@ -128,7 +140,11 @@ impl McuIoRegistersService {
         mcu_atxmega128a4u.insert("SREG", 0x3f);
         mcu_atxmega128a4u.insert("SPH", 0x3e);
         mcu_atxmega128a4u.insert("PORTC", 0x640);
+        mcu_atxmega128a4u.insert("RAMPX", 0x39);
+        mcu_atxmega128a4u.insert("RAMPD", 0x38);
         mcu_atxmega128a4u.insert("PORTA", 0x600);
+        mcu_atxmega128a4u.insert("RAMPZ", 0x3b);
+        mcu_atxmega128a4u.insert("RAMPY", 0x3a);
         mcu_atxmega128a4u.insert("PORTB", 0x620);
         mcu_atxmega128a4u.insert("#FLASHEND", 0x21fff);
         mcu_atxmega128a4u.insert("#__AVR_3_BYTE_PC__", 0x1);
