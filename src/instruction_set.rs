@@ -4,6 +4,13 @@ use core::CpuSignal;
 use bits::BitOps;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RegIncDec {
+    Unchanged,
+    Inc,
+    Dec
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Instruction {
     Adc { d: u8, r: u8 },
     Add { d: u8, r: u8 },
@@ -35,7 +42,9 @@ pub enum Instruction {
     Elpm { d: u8 },
     ElpmInc { d: u8 },
     Eor { d: u8, r: u8 },
-    LddX { q: u8, d: u8 },
+    LdX { d: u8, xop: RegIncDec },
+    LdY { d: u8, yop: RegIncDec },
+    LdZ { d: u8, zop: RegIncDec },
     LddY { q: u8, d: u8 },
     LddZ { q: u8, d: u8 },
     Ldi { d: u8, k: u8 },
@@ -51,7 +60,9 @@ pub enum Instruction {
     Sbci { d: u8, k: u8 },
     Sbiw { d: u8, k: u8 },
     Sbrc { r: u8, b: u8 },
-    StdX { q: u8, r: u8 },
+    StX { r: u8, xop: RegIncDec },
+    StY { r: u8, yop: RegIncDec },
+    StZ { r: u8, zop: RegIncDec },
     StdY { q: u8, r: u8 },
     StdZ { q: u8, r: u8 },
 
@@ -93,10 +104,10 @@ fn rjmp(vm: &mut AvrVm, k: i32) -> Result<(), CpuSignal> {
     }
 }
 
-fn ldd(vm: &mut AvrVm, yz: u16, q: u8, d: u8) {
+fn ldd(vm: &mut AvrVm, yz: u32, q: u8, d: u8) {
     let yzq = match vm.read(yz as usize + q as usize, false) {
         Ok((yzq, DataMemoryType::SRam)) => {
-            vm.core.cycles += 1;
+            if vm.info.xmega { vm.core.cycles += 1; }
             yzq
         },
         Ok((_, DataMemoryType::Eeprom)) => 0,
@@ -104,13 +115,65 @@ fn ldd(vm: &mut AvrVm, yz: u16, q: u8, d: u8) {
         Err(_) => 0,
     };
     vm.core.write_reg(d, yzq);
-    if q != 0 {
-        if vm.info.xmega {
-            vm.core.cycles += 1;
-        } else {
-            vm.core.cycles += 2;
+    if vm.info.xmega {
+        vm.core.cycles += 1;
+    } else {
+        vm.core.cycles += 2;
+    }
+}
+
+fn ld(vm: &mut AvrVm, xyz: u32, op: RegIncDec, d: u8) -> u32 {
+    let mut xyz = xyz;
+
+    // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
+    if op == RegIncDec::Dec { xyz -= 1 }
+
+    let r = match vm.read(xyz as usize, false) {
+        Ok((yzq, DataMemoryType::SRam)) => {
+            if vm.info.xmega { vm.core.cycles += 1; }
+            yzq
+        },
+        Ok((_, DataMemoryType::Eeprom)) => 0,
+        Ok((yzq, _)) => yzq,
+        Err(_) => 0,
+    };
+    vm.core.write_reg(d, r);
+
+    // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
+    if op == RegIncDec::Inc { xyz += 1 }
+
+    if vm.info.xmega {
+        if op == RegIncDec::Dec { vm.core.cycles += 1 }
+    } else {
+        match op {
+            RegIncDec::Unchanged => {},
+            RegIncDec::Inc => vm.core.cycles += 1,
+            RegIncDec::Dec => vm.core.cycles += 2,
         }
     }
+
+    xyz
+}
+
+fn st(vm: &mut AvrVm, xyz: u32, op: RegIncDec, r: u8) -> u32 {
+    let mut xyz = xyz;
+
+    // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
+    if op == RegIncDec::Dec { xyz -= 1 }
+
+    let rr = vm.core.read_reg(r);
+    vm.write_u8_noneeprom(xyz as usize, rr);
+
+    // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
+    if op == RegIncDec::Inc { xyz += 1 }
+
+    if vm.info.xmega || vm.info.tiny {
+        if op == RegIncDec::Dec { vm.core.cycles += 1; }
+    } else {
+        vm.core.cycles += 1;
+    }
+
+    xyz
 }
 
 fn elpm(vm: &mut AvrVm, d: u8) -> u32 {
@@ -266,12 +329,30 @@ impl Instruction {
 
             &Nop => { },
 
+            &LdX { d, xop } => {
+                let mut x = state.core.read_ramped_x();
+                x = ld(state, x, xop, d);
+                state.core.write_ramped_x(x);
+            },
+
+            &LdY { d, yop } => {
+                let mut y = state.core.read_ramped_y();
+                y = ld(state, y, yop, d);
+                state.core.write_ramped_y(y);
+            },
+
+            &LdZ { d, zop } => {
+                let mut z = state.core.read_ramped_z();
+                z = ld(state, z, zop, d);
+                state.core.write_ramped_z(z);
+            },
+
             &LddY { q, d } => {
-                let y = state.core.read_y();
+                let y = state.core.read_ramped_y();
                 ldd(state, y, q, d);
             }
             &LddZ { q, d } => {
-                let z = state.core.read_z();
+                let z = state.core.read_ramped_z();
                 ldd(state, z, q, d);
             },
 
@@ -347,20 +428,38 @@ impl Instruction {
                 }
             }
 
+            &StX { r, xop } => {
+                let mut x = state.core.read_ramped_x();
+                x = st(state, x, xop, r);
+                state.core.write_ramped_x(x);
+            },
+
+            &StY { r, yop } => {
+                let mut y = state.core.read_ramped_y();
+                y = st(state, y, yop, r);
+                state.core.write_ramped_y(y);
+            },
+
+            &StZ { r, zop } => {
+                let mut z = state.core.read_ramped_z();
+                z = st(state, z, zop, r);
+                state.core.write_ramped_z(z);
+            },
+
             &StdY { q, r } => {
-                let y = state.core.read_y();
+                let y = state.core.read_ramped_y();
                 let rr = state.core.read_reg(r);
                 state.write_u8_noneeprom(y as usize + q as usize, rr);
-                if q != 0 && !state.info.xmega && !state.info.reduced_core_tiny {
+                if !state.info.xmega && !state.info.tiny {
                     state.core.cycles += 1;
                 }
             },
 
             &StdZ { q, r } => {
-                let z = state.core.read_z();
+                let z = state.core.read_ramped_z();
                 let rr = state.core.read_reg(r);
                 state.write_u8_noneeprom(z as usize + q as usize, rr);
-                if q != 0 && !state.info.xmega && !state.info.reduced_core_tiny {
+                if !state.info.xmega && !state.info.tiny {
                     state.core.cycles += 1;
                 }
             },

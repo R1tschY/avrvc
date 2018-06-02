@@ -46,7 +46,7 @@ fn add_stdldd(
     factory: fn(u8, u8) -> Instruction
 ) {
     for r in 0..32u8 {
-        for q in 0..64u8 {
+        for q in 1..64u8 { // skip q == 0
             instr16.insert(
                 base | ((q as u16 & 0b100000) << 8) | ((q as u16 & 0b11000) << 7)
                     | (q as u16 & 0b111) | ((r as u16) << 4),
@@ -113,57 +113,78 @@ pub struct AvrDecoder {
 impl AvrDecoder {
 
     pub fn new() -> AvrDecoder {
+        use instruction_set::RegIncDec::*;
+        use instruction_set::Instruction::*;
+
         let mut instr16 = HashMap::new();
 
-        instr16.insert(0, Instruction::Nop);
-        instr16.insert(0b_1001_0101_0000_1000_u16, Instruction::Ret);
-        instr16.insert(0b_1001_0101_1001_1000_u16, Instruction::Break);
-        instr16.insert(0b_1001_0100_1111_1000_u16, Instruction::Cli);
-        instr16.insert(0b_1001_0101_1101_1000_u16, Instruction::Elpm0);
+        instr16.insert(0, Nop);
+        instr16.insert(0b_1001_0101_0000_1000_u16, Ret);
+        instr16.insert(0b_1001_0101_1001_1000_u16, Break);
+        instr16.insert(0b_1001_0100_1111_1000_u16, Cli);
+        instr16.insert(0b_1001_0101_1101_1000_u16, Elpm0);
 
-        add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Instruction::Com { d });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Instruction::Pop { r });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1111_u16, |r| Instruction::Push { r });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_0110_u16, |d| Instruction::Elpm { d });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_0111_u16, |d| Instruction::ElpmInc { d });
+        add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Com { d });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Pop { r });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1111_u16, |r| Push { r });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0110_u16, |d| Elpm { d });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0111_u16, |d| ElpmInc { d });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1100_u16, |d| LdX { d, xop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1101_u16, |d| LdX { d, xop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1110_u16, |d| LdX { d, xop: Dec });
+        add_instr5(&mut instr16, 0b_1000_0000_0000_1000_u16, |d| LdY { d, yop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1001_u16, |d| LdY { d, yop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1010_u16, |d| LdY { d, yop: Dec });
+        add_instr5(&mut instr16, 0b_1000_0000_0000_0000_u16, |d| LdZ { d, zop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0001_u16, |d| LdZ { d, zop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0010_u16, |d| LdZ { d, zop: Dec });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1100_u16, |r| StX { r, xop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1101_u16, |r| StX { r, xop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1110_u16, |r| StX { r, xop: Dec });
+        add_instr5(&mut instr16, 0b_1000_0010_0000_1000_u16, |r| StY { r, yop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1001_u16, |r| StY { r, yop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1010_u16, |r| StY { r, yop: Dec });
+        add_instr5(&mut instr16, 0b_1000_0010_0000_0000_u16, |r| StZ { r, zop: Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_0001_u16, |r| StZ { r, zop: Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_0010_u16, |r| StZ { r, zop: Dec });
 
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0000_u16, |k| Instruction::Brcc { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0000_u16, |k| Instruction::Brcs { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0001_u16, |k| Instruction::Breq { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0100_u16, |k| Instruction::Brge { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0101_u16, |k| Instruction::Brhc { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0101_u16, |k| Instruction::Brhs { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0111_u16, |k| Instruction::Brid { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0111_u16, |k| Instruction::Brie { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0100_u16, |k| Instruction::Brlt { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0010_u16, |k| Instruction::Brmi { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0001_u16, |k| Instruction::Brne { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0010_u16, |k| Instruction::Brpl { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0110_u16, |k| Instruction::Brtc { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0110_u16, |k| Instruction::Brts { k });
-        add_instr7(&mut instr16, 0b_1111_0100_0000_0011_u16, |k| Instruction::Brvc { k });
-        add_instr7(&mut instr16, 0b_1111_0000_0000_0011_u16, |k| Instruction::Brvs { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0000_u16, |k| Brcc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0000_u16, |k| Brcs { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0001_u16, |k| Breq { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0100_u16, |k| Brge { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0101_u16, |k| Brhc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0101_u16, |k| Brhs { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0111_u16, |k| Brid { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0111_u16, |k| Brie { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0100_u16, |k| Brlt { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0010_u16, |k| Brmi { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0001_u16, |k| Brne { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0010_u16, |k| Brpl { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0110_u16, |k| Brtc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0110_u16, |k| Brts { k });
+        add_instr7(&mut instr16, 0b_1111_0100_0000_0011_u16, |k| Brvc { k });
+        add_instr7(&mut instr16, 0b_1111_0000_0000_0011_u16, |k| Brvs { k });
 
-        add_instr26(&mut instr16, 0b_1001_0111_0000_0000_u16, |d, k| Instruction::Sbiw { d, k });
-        add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Instruction::Adiw { d, k });
+        add_instr26(&mut instr16, 0b_1001_0111_0000_0000_u16, |d, k| Sbiw { d, k });
+        add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Adiw { d, k });
 
-        add_instr35(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Instruction::Sbrc { r, b });
+        add_instr35(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Sbrc { r, b });
 
-        add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Instruction::Cpi { d, k });
-        add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Instruction::Sbci { d, k });
-        add_instr48(&mut instr16, 0b_1110_0000_0000_0000_u16, |d, k| Instruction::Ldi { d, k });
+        add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Cpi { d, k });
+        add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Sbci { d, k });
+        add_instr48(&mut instr16, 0b_1110_0000_0000_0000_u16, |d, k| Ldi { d, k });
 
-        add_instr55(&mut instr16, 0b_0000_0100_0000_0000_u16, |d, r| Instruction::Cpc { d, r });
-        add_instr55(&mut instr16, 0b_0000_1100_0000_0000_u16, |d, r| Instruction::Add { d, r });
-        add_instr55(&mut instr16, 0b_0001_0100_0000_0000_u16, |d, r| Instruction::Cp { d, r });
-        add_instr55(&mut instr16, 0b_0001_1100_0000_0000_u16, |d, r| Instruction::Adc { d, r });
-        add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Instruction::Eor { d, r });
-        add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Instruction::Mov { d, r });
+        add_instr55(&mut instr16, 0b_0000_0100_0000_0000_u16, |d, r| Cpc { d, r });
+        add_instr55(&mut instr16, 0b_0000_1100_0000_0000_u16, |d, r| Add { d, r });
+        add_instr55(&mut instr16, 0b_0001_0100_0000_0000_u16, |d, r| Cp { d, r });
+        add_instr55(&mut instr16, 0b_0001_1100_0000_0000_u16, |d, r| Adc { d, r });
+        add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Eor { d, r });
+        add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Mov { d, r });
 
-        add_stdldd(&mut instr16, 0b_1000_0010_0000_1000_u16, |r, q| Instruction::StdY { r, q });
-        add_stdldd(&mut instr16, 0b_1000_0010_0000_0000_u16, |r, q| Instruction::StdZ { r, q });
-        add_stdldd(&mut instr16, 0b_1000_0000_0000_1000_u16, |d, q| Instruction::LddY { d, q });
-        add_stdldd(&mut instr16, 0b_1000_0000_0000_0000_u16, |d, q| Instruction::LddZ { d, q });
+        add_stdldd(&mut instr16, 0b_1000_0010_0000_1000_u16, |r, q| StdY { r, q });
+        add_stdldd(&mut instr16, 0b_1000_0010_0000_0000_u16, |r, q| StdZ { r, q });
+        add_stdldd(&mut instr16, 0b_1000_0000_0000_1000_u16, |d, q| LddY { d, q });
+        add_stdldd(&mut instr16, 0b_1000_0000_0000_0000_u16, |d, q| LddZ { d, q });
 
 
         // OUT
@@ -171,7 +192,7 @@ impl AvrDecoder {
             for a in 0..64u8 {
                 instr16.insert(
                     0b_1011_1000_0000_0000_u16 | encode_56(r, a),
-                    Instruction::Out { r, a });
+                    Out { r, a });
             }
         }
 
@@ -179,7 +200,7 @@ impl AvrDecoder {
         for k in -2048i16..2048i16 {
             instr16.insert(
                 0b_1100_0000_0000_0000_u16 | (k & 0x0FFF) as u16,
-                Instruction::Rjmp { k });
+                Rjmp { k });
         }
 
         // IN
@@ -187,7 +208,7 @@ impl AvrDecoder {
             for a in 0..64u8 {
                 instr16.insert(
                     0b_1011_0000_0000_0000_u16 | encode_56(d, a),
-                    Instruction::In { d, a });
+                    In { d, a });
             }
         }
 

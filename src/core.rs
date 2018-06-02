@@ -447,7 +447,7 @@ pub struct AvrVmInfo {
     pub xmega: bool, // TODO: make read-only
 
     /// is a Reduced Core tinyAVR device
-    pub reduced_core_tiny: bool, // TODO: make read-only
+    pub tiny: bool, // TODO: make read-only
 
     pub flash_bytes: usize, // TODO: make read-only
 
@@ -468,7 +468,7 @@ impl AvrVmInfo {
         AvrVmInfo {
             pc_bytes: if infos.contains_key("#__AVR_3_BYTE_PC__") { 3 } else { 2 },
             xmega: infos.contains_key("#__AVR_XMEGA__"),
-            reduced_core_tiny: false, // TODO
+            tiny: false, // TODO
             flash_bytes: infos["#FLASHEND"] + 1,
             ios: *infos.get("#IO_SIZE").unwrap_or(&infos["#RAMSTART"]),
             ram: infos["#RAMSTART"]..(infos["#RAMEND"] + 1),

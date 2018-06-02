@@ -1,6 +1,7 @@
 use instruction_set::Instruction;
 use decoder::AvrDecoder;
 use decoder::Decoder;
+use instruction_set::RegIncDec;
 
 
 pub trait ObjDumpInstr {
@@ -15,22 +16,13 @@ fn format_calljmp(mnemonic: &str, k: u32) -> String {
     }
 }
 
-fn format_ldd(mnemonic: &str, yz: char, q: u8, d: u8) -> String {
-    if q == 0 {
-        format!("{}\tr{}, {}", &mnemonic[..2], d, yz)
-    } else {
-        format!("{}\tr{}, {}+{}", mnemonic, d, yz, q)
+fn incdec(xyz: &str, op: RegIncDec) -> String {
+    match op {
+        RegIncDec::Unchanged => String::from(xyz),
+        RegIncDec::Inc => format!("{}+", xyz),
+        RegIncDec::Dec => format!("-{}", xyz),
     }
 }
-
-fn format_std(mnemonic: &str, yz: char, q: u8, r: u8) -> String {
-    if q == 0 {
-        format!("{}\t{}, r{}", &mnemonic[..2], yz, r)
-    } else {
-        format!("{}\t{}+{}, r{}", mnemonic, yz, q, r)
-    }
-}
-
 
 impl ObjDumpInstr for Instruction {
     fn dump(&self) -> String {
@@ -69,8 +61,11 @@ impl ObjDumpInstr for Instruction {
             &Elpm { d } => format!("elpm\tr{}, Z", d),
             &ElpmInc { d } => format!("elpm\tr{}, Z+", d),
             &Eor { d, r } => format!("eor\tr{}, r{}", d, r),
-            &LddY { q, d } => format_ldd("ldd", 'Y', q, d),
-            &LddZ { q, d } => format_ldd("ldd", 'Z', q, d),
+            &LdX { d, xop } => format!("ld\tr{}, {}", d, incdec("X", xop)),
+            &LdY { d, yop } => format!("ld\tr{}, {}", d, incdec("Y", yop)),
+            &LdZ { d, zop } => format!("ld\tr{}, {}", d, incdec("Z", zop)),
+            &LddY { q, d } => format!("ldd\tr{}, Y+{}", d, q),
+            &LddZ { q, d } => format!("ldd\tr{}, Z+{}", d, q),
             &Ldi { d, k } => format!("ldi\tr{}, 0x{:02X}", d, k),
             &In { d, a } => format!("in\tr{}, 0x{:02x}", d, a),
             &Jmp { k } => format_calljmp("jmp", k),
@@ -84,8 +79,11 @@ impl ObjDumpInstr for Instruction {
             &Sbci { d, k } => format!("sbci\tr{}, 0x{:02X}", d, k),
             &Sbiw { d, k } => format!("sbiw\tr{}, 0x{:02x}", d, k),
             &Sbrc { r, b } => format!("sbrc\tr{}, {}", r, b),
-            &StdY { q, r } => format_std("std", 'Y', q, r),
-            &StdZ { q, r } => format_std("std", 'Z', q, r),
+            &StX { r, xop } => format!("st\t{}, r{}", incdec("X", xop), r),
+            &StY { r, yop } => format!("st\t{}, r{}", incdec("Y", yop), r),
+            &StZ { r, zop } => format!("st\t{}, r{}", incdec("Z", zop), r),
+            &StdY { q, r } => format!("std\tY+{}, r{}", q, r),
+            &StdZ { q, r } => format!("std\tZ+{}, r{}", q, r),
             &Invaild { .. } => format!("invalid"),
         }
     }
