@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import itertools
 import logging
 import subprocess
 import sys
@@ -15,12 +15,26 @@ MCUS = [
     "atxmega16a4u", "atxmega32a4u", "atxmega64a4u", "atxmega128a4u"
 ]
 
+USART_REGS = [
+    "USART{}_DATA", "USART{}_STATUS", "USART{}_CTRLA", "USART{}_CTRLB",
+    "USART{}_CTRLC", "USART{}_BAUDCTRLA", "USART{}_BAUDCTRLB"
+]
+
+USART_INDEXES = [
+    "C0", "C1", "D0", "D1", "E0", "E1", "F0", "F1"
+]
+
 IOREGS = [
+    # GPIO
     "SREG", "SPH", "SPL", "RAMPD", "RAMPX", "RAMPY", "RAMPZ",
 
     "PORTA", "PORTB", "PORTC", "PORTD",
     "PINA", "PINB", "PINC", "PIND",
     "DDRA", "DDRB", "DDRC", "DDRD",
+] + [
+    # USART
+    reg.format(index)
+    for reg, index in itertools.product(USART_REGS, USART_INDEXES)
 ]
 
 REQUIRED_IOREGS = [

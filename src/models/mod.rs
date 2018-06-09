@@ -2,6 +2,8 @@ use core::AvrVm;
 
 pub mod xmega_au;
 pub mod register_service;
+pub mod usart;
+pub mod envmodel;
 
 
 /// model of avr controller type

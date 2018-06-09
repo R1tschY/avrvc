@@ -3,6 +3,7 @@ use core::AvrVm;
 use core::AvrVmInfo;
 use models::register_gpio;
 use models::AvrMcu;
+use models::usart::register_usart;
 
 pub enum XmegaA4U {
     ATxmega16A4U,
@@ -31,6 +32,7 @@ impl AvrModel for XmegaA4U {
         let mut vm = AvrVm::new(&info);
 
         register_gpio(&mut vm);
+        register_usart(&mut vm);
 
         vm.core.sp = info.ram.end - 1;
         vm
