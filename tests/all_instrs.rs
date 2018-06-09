@@ -5,30 +5,29 @@ extern crate pretty_assertions;
 
 use avrvc::executable::read_executable_file;
 use avrvc::tools::objdump::objdump;
-use std::fs::File;
-use std::io::Read;
+use std::fs;
 
 #[test]
 fn all_instrs() {
     let bytes = read_executable_file("tests/all_instrs/all_instrs.bin");
     let actual = objdump(&bytes) + "\n";
 
-    let mut f = File::open("tests/all_instrs/main.S").expect("file not found");
-    let mut expected = String::new();
-    f.read_to_string(&mut expected).expect("something went wrong reading the file");
+    let expected = fs::read_to_string("tests/all_instrs/main.S").unwrap();
 
     // for pretty diff
     let actual_lines: Vec<_> = actual.split("\n").collect();
     let expected_lines: Vec<_> = expected.split("\n").collect();
 
+    let mut i = 0;
     for (&act, &exp) in actual_lines.iter().zip(expected_lines.iter()) {
         if act != "invalid" { // TODO: remove if we support all
-            assert_eq!(act, exp);
+            assert_eq!(act, exp, "opcode: 0b{:b}", i);
         }
 
         if exp.starts_with(".word") {
             assert_eq!(act, "invalid");
         }
+        i += 1;
     }
 
     assert_eq!(actual_lines.len(), 65537);

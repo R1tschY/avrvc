@@ -160,6 +160,10 @@ impl AvrCoreState {
         self.interrupt = value & (1 << 7) != 0;
     }
 
+    pub fn ramped_addr(&self, addr: u16) -> usize {
+        addr as usize + ((self.rampd as usize) << 16)
+    }
+
 }
 
 /// avr cpu state, cpu information and external hooks
@@ -372,35 +376,6 @@ impl AvrVm {
         }
     }
 
-    pub fn mem_ref(&self, addr: usize, view: bool) -> Result<u8, AccessError> {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
-            Ok(self.core.ram[addr - self.core.ram_offset])
-        } else if addr < self.io_reg_state.len() {
-            Ok(self.read_io(addr, view))
-        } else if addr > self.core.eeprom_offset
-            && addr < self.core.eeprom_offset + self.core.eeprom.len() {
-            Ok(self.core.eeprom[addr - self.core.eeprom_offset])
-        } else {
-            Err(AccessError::ReadError(addr))
-        }
-    }
-
-    pub fn mut_mem_ref(&mut self, addr: usize, value: u8) -> Result<(), AccessError> {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
-            let offset = self.core.ram_offset;
-            self.core.ram[addr - offset] = value;
-        } else if addr < self.io_reg_state.len() {
-            self.write_io(addr, value);
-        } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
-            let offset = self.core.eeprom_offset;
-            self.core.eeprom[addr - offset] = value;
-        } else {
-            return Err(AccessError::WriteError(addr));
-        }
-
-        Ok(())
-    }
-
     pub fn read_u8_noneeprom(&self, addr: usize, view: bool) -> u8 {
         if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             self.core.ram[addr - self.core.ram_offset]
@@ -413,7 +388,7 @@ impl AvrVm {
     }
 
     pub fn write_u8_noneeprom(&mut self, addr: usize, value: u8) {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;
         } else if addr < self.io_reg_state.len() {

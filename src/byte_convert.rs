@@ -1,5 +1,4 @@
 
-
 pub fn i16le(a: u8, b: u8) -> i16 { (b as i16) << 8 | a as i16 }
 pub fn u16le(a: u8, b: u8) -> u16 { (b as u16) << 8 | a as u16 }
 pub fn u16be(a: u8, b: u8) -> u16 { (a as u16) << 8 | b as u16 }
@@ -26,4 +25,8 @@ pub fn u32be(a: u8, b: u8, c: u8, d: u8) -> u32 {
 pub fn u8bits(a: bool, b: bool, c: bool, d: bool, e: bool, f: bool, g: bool, h: bool) -> u8 {
     ((a as u8) << 7) | ((b as u8) << 6) | ((c as u8) << 5) | ((d as u8) << 4) | ((e as u8) << 3) |
         ((f as u8) << 2) | ((g as u8) << 1) | ((h as u8) << 0)
+}
+
+pub fn bit_at(value: u8, addr: u8) -> bool {
+    value & (1 << addr) != 0
 }

@@ -1,6 +1,8 @@
 use instruction_set::Instruction;
 use std::collections::HashMap;
 use byte_convert::u16le;
+use byte_convert::u8bits;
+use byte_convert::bit_at;
 
 pub trait Decoder {
     fn decode(&self, bytes: &Vec<u8>, pos: usize) -> Instruction;
@@ -82,6 +84,47 @@ fn add_instr48(
                     | ((d - 16) as u16) << 4
                     | (k as u16 & 0x0F) << 0,
                 factory(d, k as u8));
+        }
+    }
+}
+
+fn add_ldssts(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 16..32u8 {
+        for k in 0..128u8 {
+            let addr = u8bits(
+                bit_at(k, 0),
+                bit_at(k, 1),
+                bit_at(k, 2),
+                bit_at(k, 3),
+                bit_at(k, 5),
+                bit_at(k, 6),
+                bit_at(k, 4),
+                !bit_at(k, 4)
+            );
+            instr16.insert(
+                base
+                    | (k as u16 & 0xF0) << 4
+                    | ((d - 16) as u16) << 4
+                    | (k as u16 & 0x0F) << 0,
+                factory(addr, k));
+        }
+    }
+}
+
+fn add_movw(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 0..16u8 {
+        for r in 0..16u8 {
+            instr16.insert(
+                base | (r as u16) | ((d as u16) << 4),
+                factory(d * 2, r * 2));
         }
     }
 }
@@ -169,10 +212,16 @@ impl AvrDecoder {
         add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Adiw { d, k });
 
         add_instr35(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Sbrc { r, b });
+        add_instr35(&mut instr16, 0b_1111_1110_0000_0000_u16, |r, b| Sbrs { r, b });
 
         add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Cpi { d, k });
         add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Sbci { d, k });
         add_instr48(&mut instr16, 0b_1110_0000_0000_0000_u16, |d, k| Ldi { d, k });
+
+        add_movw(&mut instr16, 0b_0000_0001_0000_0000_u16, |d, r| Movw { d, r });
+
+        add_ldssts(&mut instr16, 0b_1010_0000_0000_0000_u16, |d, k| { Lds { d, k } });
+        add_ldssts(&mut instr16, 0b_1010_1000_0000_0000_u16, |r, k| { Sts { r, k } });
 
         add_instr55(&mut instr16, 0b_0000_0100_0000_0000_u16, |d, r| Cpc { d, r });
         add_instr55(&mut instr16, 0b_0000_1100_0000_0000_u16, |d, r| Add { d, r });
@@ -180,6 +229,7 @@ impl AvrDecoder {
         add_instr55(&mut instr16, 0b_0001_1100_0000_0000_u16, |d, r| Adc { d, r });
         add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Eor { d, r });
         add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Mov { d, r });
+        add_instr55(&mut instr16, 0b_0010_0000_0000_0000_u16, |d, r| And { d, r });
 
         add_stdldd(&mut instr16, 0b_1000_0010_0000_1000_u16, |r, q| StdY { r, q });
         add_stdldd(&mut instr16, 0b_1000_0010_0000_0000_u16, |r, q| StdZ { r, q });
@@ -215,7 +265,7 @@ impl AvrDecoder {
         AvrDecoder { instr16 }
     }
 
-    fn decode_jump_call(&self, flash: &Vec<u8>, pos: usize, w0: u16) -> usize {
+    fn decode_jump_call(flash: &Vec<u8>, pos: usize, w0: u16) -> usize {
         if pos + 4 >= flash.len() {
             panic!("decode: index out of bounds: {}", pos)
         }
@@ -226,6 +276,19 @@ impl AvrDecoder {
             ((w0 as usize & 0b111110000) << 13)
                 | ((w0 as usize & 0x1) << 16)
                 | w1 as usize
+        )
+    }
+
+    fn decode_ldssts16(flash: &Vec<u8>, pos: usize, w0: u16) -> (u8, u16) {
+        if pos + 4 >= flash.len() {
+            panic!("decode: index out of bounds: {}", pos)
+        }
+
+        let w1 = u16le(flash[pos + 2], flash[pos + 3]);
+
+        (
+            ((w0 & 0b111110000) >> 4) as u8,
+            w1
         )
     }
 
@@ -250,14 +313,27 @@ impl Decoder for AvrDecoder {
         let b1: u8 = if pos + 1 == bytes.len() { 0 } else { bytes[pos + 1] };
         let w0 = u16le(b0, b1);
 
-        if b1 & 0b11111110 == 0b10010100 {
-            match b0 & 0b1110 {
-                0b1100 => return Instruction::Jmp {
-                    k: self.decode_jump_call(bytes, pos, w0) as u32 },
-                0b1110 => return Instruction::Call {
-                    k: self.decode_jump_call(bytes, pos, w0) as u32 },
-                _ => { }
+        match b1 & 0b11111110 {
+            0b10010100 =>
+                match b0 & 0b1110 {
+                    0b1100 => return Instruction::Jmp {
+                        k: AvrDecoder::decode_jump_call(bytes, pos, w0) as u32 },
+                    0b1110 => return Instruction::Call {
+                        k: AvrDecoder::decode_jump_call(bytes, pos, w0) as u32 },
+                    _ => { }
+                },
+
+            0b10010010 if b0 & 0b1111 == 0b0000 => {
+                let (r, k) = AvrDecoder::decode_ldssts16(bytes, pos, w0);
+                return Instruction::Sts16 { r, k }
             }
+
+            0b10010000 if b0 & 0b1111 == 0b0000 => {
+                let (d, k) = AvrDecoder::decode_ldssts16(bytes, pos, w0);
+                return Instruction::Lds16 { d, k }
+            }
+
+            _ => { }
         }
 
         match self.instr16.get(&w0) {
@@ -298,6 +374,7 @@ impl Decoder for AvrDecoderCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use instruction_set::RegIncDec;
 
     #[test]
     fn test_ldi1() {
@@ -337,5 +414,13 @@ mod tests {
         let bytes = vec![0x05u8, 0xf0u8];
         let instr = decoder.decode(&bytes, 0);
         assert_eq!(instr, Instruction::Brhs { k: 0 });
+    }
+
+    #[test]
+    fn test_ldz() {
+        let decoder = AvrDecoder::new();
+        let bytes = vec![0b00000001, 0b10010000];
+        let instr = decoder.decode(&bytes, 0);
+        assert_eq!(instr, Instruction::LdZ { d: 0, zop: RegIncDec::Inc });
     }
 }

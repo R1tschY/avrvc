@@ -15,6 +15,7 @@ pub enum Instruction {
     Adc { d: u8, r: u8 },
     Add { d: u8, r: u8 },
     Adiw { d: u8, k: u8 },
+    And { d: u8, r: u8 },
     Break,
     Brcc { k: i8 },
     Brcs { k: i8 },
@@ -48,9 +49,12 @@ pub enum Instruction {
     LddY { q: u8, d: u8 },
     LddZ { q: u8, d: u8 },
     Ldi { d: u8, k: u8 },
+    Lds { d: u8, k: u8 },
+    Lds16 { d: u8, k: u16 },
     In  { d: u8, a: u8 },
     Jmp { k: u32 },
     Mov { d: u8, r: u8 },
+    Movw { d: u8, r: u8 },
     Nop,
     Out { r: u8, a: u8 },
     Pop { r: u8 },
@@ -60,11 +64,14 @@ pub enum Instruction {
     Sbci { d: u8, k: u8 },
     Sbiw { d: u8, k: u8 },
     Sbrc { r: u8, b: u8 },
+    Sbrs { r: u8, b: u8 },
     StX { r: u8, xop: RegIncDec },
     StY { r: u8, yop: RegIncDec },
     StZ { r: u8, zop: RegIncDec },
     StdY { q: u8, r: u8 },
     StdZ { q: u8, r: u8 },
+    Sts { r: u8, k: u8 },
+    Sts16 { r: u8, k: u16 },
 
     Invaild { opcode: u16 }
 }
@@ -128,15 +135,7 @@ fn ld(vm: &mut AvrVm, xyz: u32, op: RegIncDec, d: u8) -> u32 {
     // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
     if op == RegIncDec::Dec { xyz -= 1 }
 
-    let r = match vm.read(xyz as usize, false) {
-        Ok((yzq, DataMemoryType::SRam)) => {
-            if vm.info.xmega { vm.core.cycles += 1; }
-            yzq
-        },
-        Ok((_, DataMemoryType::Eeprom)) => 0,
-        Ok((yzq, _)) => yzq,
-        Err(_) => 0,
-    };
+    let r = ld_read(vm, xyz as usize);
     vm.core.write_reg(d, r);
 
     // TODO: only change 8 bit or 16 bit if data space < 256B or < 64KB
@@ -153,6 +152,18 @@ fn ld(vm: &mut AvrVm, xyz: u32, op: RegIncDec, d: u8) -> u32 {
     }
 
     xyz
+}
+
+fn ld_read(vm: &mut AvrVm, addr: usize) -> u8 {
+    match vm.read(addr, false) {
+        Ok((q, DataMemoryType::SRam)) => {
+            if vm.info.xmega { vm.core.cycles += 1; }
+            q
+        },
+        Ok((_, DataMemoryType::Eeprom)) => 0,
+        Ok((q, _)) => q,
+        Err(_) => 0,
+    }
 }
 
 fn st(vm: &mut AvrVm, xyz: u32, op: RegIncDec, r: u8) -> u32 {
@@ -218,6 +229,13 @@ impl Instruction {
                 state.core.write_reg16(d, (r & 0xFFFF) as u16);
                 state.core.cycles += 1;
             },
+
+            &And { d, r } => {
+                let rr = state.core.read_reg(d) & state.core.read_reg(r);
+                state.core.write_reg(d, rr);
+                state.core.v = false;
+                set_zns16(state, r as u16);
+            }
 
             &Break => return Err(CpuSignal::Break),
 
@@ -327,6 +345,11 @@ impl Instruction {
                 state.core.write_reg(d, rr);
             },
 
+            &Movw { d, r } => {
+                let rr = state.core.read_reg16(r);
+                state.core.write_reg16(d, rr);
+            },
+
             &Nop => { },
 
             &LdX { d, xop } => {
@@ -358,6 +381,19 @@ impl Instruction {
 
             &Ldi { d, k } => {
                 state.core.write_reg(d, k);
+            },
+
+            &Lds16 { d, k } => {
+                let addr = state.core.ramped_addr(k);
+                let r = ld_read(state, addr);
+                state.core.write_reg(d, r);
+                state.core.cycles += 1;
+                state.core.pc += 1;
+            },
+
+            &Lds { d, k } => {
+                let r = state.read_u8_noneeprom(k as usize, false);
+                state.core.write_reg(d, r);
             },
 
             &Out { r, a } => {
@@ -414,9 +450,10 @@ impl Instruction {
                 state.core.cycles += 1;
             }
 
-            &Sbrc { r, b } => {
+            &Sbrc { r, b } | &Sbrs { r, b } => {
                 let rr = state.core.read_reg(r);
-                if rr & (1 << b) == 0 {
+                let target = if let &Sbrs { .. } = self { true } else { false };
+                if (rr & (1 << b) != 0) == target {
                     if AvrDecoder::is_2word_instruction(u16le(
                         state.core.flash[state.core.pc], state.core.flash[state.core.pc + 1]
                     )) {
@@ -464,6 +501,19 @@ impl Instruction {
                 }
             },
 
+            &Sts16 { r, k } => {
+                let addr = state.core.ramped_addr(k);
+                let rr = state.core.read_reg(r);
+                state.write_u8_noneeprom(addr, rr);
+                state.core.cycles += 1;
+                state.core.pc += 1;
+            }
+
+            &Sts { r, k } => {
+                let rr = state.core.read_reg(r);
+                state.write_u8_noneeprom(k as usize, rr);
+            }
+
             &Invaild { opcode } => {
                 state.core.cycles -= 1;
                 return state.crash(CpuSignal::InvaildOpcode { opcode });
@@ -476,8 +526,7 @@ impl Instruction {
     /// size in words
     pub fn size(&self) -> usize {
         match self {
-            &Jmp { .. } | &Call { .. } => 2,
-            &Invaild { opcode } => if AvrDecoder::is_2word_instruction(opcode) { 2 } else { 1 },
+            &Jmp { .. } | &Call { .. } | &Lds16 { .. } | &Sts16 { .. } => 2,
             _ => 1
         }
     }
