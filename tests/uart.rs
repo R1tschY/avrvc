@@ -1,4 +1,5 @@
 extern crate avrvc;
+extern crate stderrlog;
 
 #[macro_use]
 extern crate pretty_assertions;
@@ -10,6 +11,7 @@ use std::io::Read;
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::core::CpuSignal;
 use avrvc::models::AvrModel;
+use stderrlog::Timestamp;
 
 #[test]
 fn objdump_uart() {
@@ -30,6 +32,12 @@ fn objdump_uart() {
 
 #[test]
 fn run_uart() {
+    stderrlog::new()
+        .verbosity(3)
+        .timestamp(Timestamp::Off)
+        .init()
+        .unwrap();
+
     let bytes = read_executable_file("tests/uart/main.bin");
     let _actual = objdump(&bytes) + "\n";
 

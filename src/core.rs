@@ -319,11 +319,11 @@ impl AvrVm {
     }
 
     pub fn read_unchecked(&self, addr: usize, view: bool) -> u8 {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             self.core.ram[addr - self.core.ram_offset]
         } else if addr < self.io_reg_state.len() {
             self.read_io(addr, view)
-        } else if addr > self.core.eeprom_offset
+        } else if addr >= self.core.eeprom_offset
                 && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             self.core.eeprom[addr - self.core.eeprom_offset]
         } else {
@@ -333,12 +333,12 @@ impl AvrVm {
     }
 
     pub fn write_unchecked(&mut self, addr: usize, value: u8) {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;
         } else if addr < self.io_reg_state.len() {
             self.write_io(addr, value);
-        } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+        } else if addr >= self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             let offset = self.core.eeprom_offset;
             self.core.eeprom[addr - offset] = value;
         } else {
@@ -347,11 +347,11 @@ impl AvrVm {
     }
 
     pub fn read(&self, addr: usize, view: bool) -> Result<(u8, DataMemoryType), AccessError> {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             Ok((self.core.ram[addr - self.core.ram_offset], DataMemoryType::SRam))
         } else if addr < self.io_reg_state.len() {
             Ok((self.read_io(addr, view), DataMemoryType::Io))
-        } else if addr > self.core.eeprom_offset
+        } else if addr >= self.core.eeprom_offset
             && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             Ok((self.core.eeprom[addr - self.core.eeprom_offset], DataMemoryType::Eeprom))
         } else {
@@ -360,14 +360,14 @@ impl AvrVm {
     }
 
     pub fn write(&mut self, addr: usize, value: u8) -> Result<DataMemoryType, AccessError> {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             let offset = self.core.ram_offset;
             self.core.ram[addr - offset] = value;
             Ok(DataMemoryType::SRam)
         } else if addr < self.io_reg_state.len() {
             self.write_io(addr, value);
             Ok(DataMemoryType::Io)
-        } else if addr > self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
+        } else if addr >= self.core.eeprom_offset && addr < self.core.eeprom_offset + self.core.eeprom.len() {
             let offset = self.core.eeprom_offset;
             self.core.eeprom[addr - offset] = value;
             Ok(DataMemoryType::Eeprom)
@@ -377,7 +377,7 @@ impl AvrVm {
     }
 
     pub fn read_u8_noneeprom(&self, addr: usize, view: bool) -> u8 {
-        if addr > self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
+        if addr >= self.core.ram_offset && addr < self.core.ram_offset + self.core.ram.len() {
             self.core.ram[addr - self.core.ram_offset]
         } else if addr < self.io_reg_state.len() {
             self.read_io(addr, view)

@@ -207,18 +207,18 @@ impl Instruction {
 
         match self {
             &Adc { d, r } => {
-                let r = state.core.read_reg(d) as u16 + state.core.read_reg(r) as u16 + state.core.carry as u16;
-                state.core.carry = r > 0xFF;
+                let rr = state.core.read_reg(d) as u16 + state.core.read_reg(r) as u16 + state.core.carry as u16;
+                state.core.carry = rr > 0xFF;
                 // TODO: HV
-                set_zns(state, r as u8);
-                state.core.write_reg(d, (r & 0xFF) as u8);
+                set_zns(state, rr as u8);
+                state.core.write_reg(d, (rr & 0xFF) as u8);
             },
             &Add { d, r } => {
-                let r = state.core.read_reg(d) as u16 + state.core.read_reg(r) as u16;
-                state.core.carry = r > 0xFF;
+                let rr = state.core.read_reg(d) as u16 + state.core.read_reg(r) as u16;
+                state.core.carry = rr > 0xFF;
                 // TODO: HV
-                set_zns(state, r as u8);
-                state.core.write_reg(d, (r & 0xFF) as u8);
+                set_zns(state, rr as u8);
+                state.core.write_reg(d, (rr & 0xFF) as u8);
             },
             &Adiw { d, k } => {
                 let rd = state.core.read_reg16(d) as u32;
@@ -234,7 +234,7 @@ impl Instruction {
                 let rr = state.core.read_reg(d) & state.core.read_reg(r);
                 state.core.write_reg(d, rr);
                 state.core.v = false;
-                set_zns16(state, r as u16);
+                set_zns16(state, rr as u16);
             }
 
             &Break => return Err(CpuSignal::Break),
@@ -454,14 +454,11 @@ impl Instruction {
                 let rr = state.core.read_reg(r);
                 let target = if let &Sbrs { .. } = self { true } else { false };
                 if (rr & (1 << b) != 0) == target {
-                    if AvrDecoder::is_2word_instruction(u16le(
+                    let instr16 = AvrDecoder::is_2word_instruction(u16le(
                         state.core.flash[state.core.pc], state.core.flash[state.core.pc + 1]
-                    )) {
-                        state.core.pc += 1;
-                        state.core.cycles += 2;
-                    } else {
-                        state.core.cycles += 1;
-                    }
+                    ));
+                    state.core.pc += 1 + instr16 as usize;
+                    state.core.cycles += 1 + instr16 as u64;
                 }
             }
 
