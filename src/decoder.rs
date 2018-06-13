@@ -42,6 +42,34 @@ fn add_instr55(
     }
 }
 
+fn add_instr44(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 16..32u8 {
+        for r in 16..32u8 {
+            instr16.insert(
+                base | ((r - 16) as u16) | (((d - 16) as u16) << 4),
+                factory(d, r));
+        }
+    }
+}
+
+fn add_instr33(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(u8, u8) -> Instruction
+) {
+    for d in 16..24u8 {
+        for r in 16..24u8 {
+            instr16.insert(
+                base | ((r - 16) as u16) | (((d - 16) as u16) << 4),
+                factory(d, r));
+        }
+    }
+}
+
 fn add_stdldd(
     instr16: &mut HashMap<u16, Instruction>,
     base: u16,
@@ -230,6 +258,10 @@ impl AvrDecoder {
         add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Eor { d, r });
         add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Mov { d, r });
         add_instr55(&mut instr16, 0b_0010_0000_0000_0000_u16, |d, r| And { d, r });
+        add_instr55(&mut instr16, 0b_1001_1100_0000_0000_u16, |d, r| Mul { d, r });
+
+        add_instr44(&mut instr16, 0b_0000_0010_0000_0000_u16, |d, r| Muls { d, r });
+        add_instr33(&mut instr16, 0b_0000_0011_0000_0000_u16, |d, r| Mulsu { d, r });
 
         add_stdldd(&mut instr16, 0b_1000_0010_0000_1000_u16, |r, q| StdY { r, q });
         add_stdldd(&mut instr16, 0b_1000_0010_0000_0000_u16, |r, q| StdZ { r, q });

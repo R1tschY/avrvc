@@ -2,6 +2,7 @@
 use core::AvrVm;
 use core::CpuSignal;
 use bits::BitOps;
+use bytes::LittleEndian;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RegIncDec {
@@ -55,6 +56,9 @@ pub enum Instruction {
     Jmp { k: u32 },
     Mov { d: u8, r: u8 },
     Movw { d: u8, r: u8 },
+    Mul { d: u8, r: u8 },
+    Muls { d: u8, r: u8 },
+    Mulsu { d: u8, r: u8 },
     Nop,
     Out { r: u8, a: u8 },
     Pop { r: u8 },
@@ -80,6 +84,11 @@ use instruction_set::Instruction::*;
 use decoder::AvrDecoder;
 use byte_convert::u16le;
 use core::DataMemoryType;
+use byte_convert::bit_at;
+use byte_convert::bit_at_u16;
+use byte_convert::as_signed;
+use byte_convert::as_unsigned;
+use byte_convert::as_unsigned16;
 
 fn set_zns(state: &mut AvrVm, res: u8) {
     state.core.n = (res >> 7) != 0;
@@ -349,6 +358,36 @@ impl Instruction {
                 let rr = state.core.read_reg16(r);
                 state.core.write_reg16(d, rr);
             },
+
+            &Mul { d, r } => {
+                let rr = state.core.read_reg(r) as u16;
+                let rd = state.core.read_reg(d) as u16;
+                let r = rr * rd;
+                state.core.write_reg16(0, r);
+                state.core.zero = r == 0;
+                state.core.carry = bit_at_u16(r, 15);
+                state.core.cycles += 1;
+            }
+
+            &Muls { d, r } => {
+                let rr = as_signed(state.core.read_reg(r)) as i16;
+                let rd = as_signed(state.core.read_reg(d)) as i16;
+                let r = rr * rd;
+                state.core.write_reg16(0, as_unsigned16(r));
+                state.core.zero = r == 0;
+                state.core.carry = bit_at_u16(as_unsigned16(r), 15);
+                state.core.cycles += 1;
+            }
+
+            &Mulsu { d, r } => {
+                let rr = state.core.read_reg(r) as i16;
+                let rd = as_signed(state.core.read_reg(d)) as i16;
+                let r = rr * rd;
+                state.core.write_reg16(0, as_unsigned16(r));
+                state.core.zero = r == 0;
+                state.core.carry = bit_at_u16(as_unsigned16(r), 15);
+                state.core.cycles += 1;
+            }
 
             &Nop => { },
 

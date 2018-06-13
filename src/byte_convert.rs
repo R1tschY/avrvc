@@ -1,3 +1,4 @@
+use std::mem;
 
 pub fn i16le(a: u8, b: u8) -> i16 { (b as i16) << 8 | a as i16 }
 pub fn u16le(a: u8, b: u8) -> u16 { (b as u16) << 8 | a as u16 }
@@ -29,4 +30,32 @@ pub fn u8bits(a: bool, b: bool, c: bool, d: bool, e: bool, f: bool, g: bool, h: 
 
 pub fn bit_at(value: u8, addr: u8) -> bool {
     value & (1 << addr) != 0
+}
+
+pub fn bit_at_u16(value: u16, addr: u8) -> bool {
+    value & (1 << addr) != 0
+}
+
+pub fn as_signed(value: u8) -> i8 {
+    unsafe {
+        mem::transmute::<u8, i8>(value)
+    }
+}
+
+pub fn as_signed16(value: u16) -> i16 {
+    unsafe {
+        mem::transmute::<u16, i16>(value)
+    }
+}
+
+pub fn as_unsigned(value: i8) -> u8 {
+    unsafe {
+        mem::transmute::<i8, u8>(value)
+    }
+}
+
+pub fn as_unsigned16(value: i16) -> u16 {
+    unsafe {
+        mem::transmute::<i16, u16>(value)
+    }
 }

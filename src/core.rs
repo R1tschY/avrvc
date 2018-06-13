@@ -95,6 +95,7 @@ impl AvrCoreState {
     }
 
     pub fn write_reg16(&mut self, addr: u8, data: u16) -> () {
+        // TODO: LittleEndian::write_u16 faster?
         self.regs[addr as usize] = (data & 0xFF) as u8;
         self.regs[addr as usize + 1] = (data >> 8) as u8;
     }
