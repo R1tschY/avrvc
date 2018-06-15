@@ -244,6 +244,8 @@ impl AvrDecoder {
 
         add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Cpi { d, k });
         add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Sbci { d, k });
+        add_instr48(&mut instr16, 0b_0111_0000_0000_0000_u16, |d, k| Andi { d, k });
+        add_instr48(&mut instr16, 0b_0110_0000_0000_0000_u16, |d, k| Ori { d, k });
         add_instr48(&mut instr16, 0b_1110_0000_0000_0000_u16, |d, k| Ldi { d, k });
 
         add_movw(&mut instr16, 0b_0000_0001_0000_0000_u16, |d, r| Movw { d, r });
@@ -256,6 +258,7 @@ impl AvrDecoder {
         add_instr55(&mut instr16, 0b_0001_0100_0000_0000_u16, |d, r| Cp { d, r });
         add_instr55(&mut instr16, 0b_0001_1100_0000_0000_u16, |d, r| Adc { d, r });
         add_instr55(&mut instr16, 0b_0010_0100_0000_0000_u16, |d, r| Eor { d, r });
+        add_instr55(&mut instr16, 0b_0010_1000_0000_0000_u16, |d, r| Or { d, r });
         add_instr55(&mut instr16, 0b_0010_1100_0000_0000_u16, |d, r| Mov { d, r });
         add_instr55(&mut instr16, 0b_0010_0000_0000_0000_u16, |d, r| And { d, r });
         add_instr55(&mut instr16, 0b_1001_1100_0000_0000_u16, |d, r| Mul { d, r });

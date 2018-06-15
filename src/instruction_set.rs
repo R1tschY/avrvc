@@ -17,6 +17,7 @@ pub enum Instruction {
     Add { d: u8, r: u8 },
     Adiw { d: u8, k: u8 },
     And { d: u8, r: u8 },
+    Andi { d: u8, k: u8 },
     Break,
     Brcc { k: i8 },
     Brcs { k: i8 },
@@ -60,6 +61,8 @@ pub enum Instruction {
     Muls { d: u8, r: u8 },
     Mulsu { d: u8, r: u8 },
     Nop,
+    Or { d: u8, r: u8 },
+    Ori { d: u8, k: u8 },
     Out { r: u8, a: u8 },
     Pop { r: u8 },
     Push { r: u8 },
@@ -234,7 +237,7 @@ impl Instruction {
                 let r = rd + k as u32;
                 state.core.carry = r > 0xFFFF;
                 state.core.v = ((!rd & r) & 0x8000) != 0;
-                set_zns16(state, r as u16);
+                set_zns16(state, (r & 0xFFFF) as u16);
                 state.core.write_reg16(d, (r & 0xFFFF) as u16);
                 state.core.cycles += 1;
             },
@@ -243,7 +246,13 @@ impl Instruction {
                 let rr = state.core.read_reg(d) & state.core.read_reg(r);
                 state.core.write_reg(d, rr);
                 state.core.v = false;
-                set_zns16(state, rr as u16);
+                set_zns(state, rr);
+            },
+            &Andi { d, k } => {
+                let rr = state.core.read_reg(d) & k;
+                state.core.write_reg(d, rr);
+                state.core.v = false;
+                set_zns(state, rr);
             }
 
             &Break => return Err(CpuSignal::Break),
@@ -434,6 +443,19 @@ impl Instruction {
                 let r = state.read_u8_noneeprom(k as usize, false);
                 state.core.write_reg(d, r);
             },
+
+            &Or { d, r } => {
+                let rr = state.core.read_reg(d) | state.core.read_reg(r);
+                state.core.write_reg(d, rr);
+                state.core.v = false;
+                set_zns(state, rr);
+            },
+            &Ori { d, k } => {
+                let rr = state.core.read_reg(d) | k;
+                state.core.write_reg(d, rr);
+                state.core.v = false;
+                set_zns(state, rr);
+            }
 
             &Out { r, a } => {
                 let reg = state.core.read_reg(r);

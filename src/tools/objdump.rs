@@ -33,6 +33,7 @@ impl ObjDumpInstr for Instruction {
             &Add { d, r } => format!("add\tr{}, r{}", d, r),
             &Adiw { d, k } => format!("adiw\tr{}, 0x{:02x}", d, k),
             &And { d, r } => format!("and\tr{}, r{}", d, r),
+            &Andi { d, k } => format!("andi\tr{}, 0x{:02X}", d, k),
             &Break => String::from("break"),
 
             &Brcc { k } => format!("brcc\t.{:+}", k * 2),
@@ -78,6 +79,8 @@ impl ObjDumpInstr for Instruction {
             &Mul { d, r } => format!("mul\tr{}, r{}", d, r),
             &Muls { d, r } => format!("muls\tr{}, r{}", d, r),
             &Mulsu { d, r } => format!("mulsu\tr{}, r{}", d, r),
+            &Or { d, r } => format!("or\tr{}, r{}", d, r),
+            &Ori { d, k } => format!("ori\tr{}, 0x{:02X}", d, k),
             &Out { r, a } => format!("out\t0x{:02x}, r{}", a, r),
             &Pop { r } => format!("pop\tr{}", r),
             &Push { r } => format!("push\tr{}", r),
