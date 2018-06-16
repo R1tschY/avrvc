@@ -68,6 +68,7 @@ pub enum Instruction {
     Push { r: u8 },
     Ret,
     Rjmp { k: i16 },
+    Sbc { d: u8, r: u8 },
     Sbci { d: u8, k: u8 },
     Sbiw { d: u8, k: u8 },
     Sbrc { r: u8, b: u8 },
@@ -79,6 +80,8 @@ pub enum Instruction {
     StdZ { q: u8, r: u8 },
     Sts { r: u8, k: u8 },
     Sts16 { r: u8, k: u16 },
+    Sub { d: u8, r: u8 },
+    Subi { d: u8, k: u8 },
 
     Invaild { opcode: u16 }
 }
@@ -488,17 +491,29 @@ impl Instruction {
 
             &Rjmp { k } => return rjmp(state, k as i32),
 
+            &Sbc { d, r } => {
+                let rd = state.core.read_reg(d);
+                let rr = state.core.read_reg(r);
+                let res = rd as i16 - rr as i16 - state.core.carry as i16;
+                // TODO: HV
+                state.core.carry = res < 0;
+                state.core.v = calc_v(rd, rr, (res & 0xFF) as u8);
+                state.core.n = (res >> 7) != 0;
+                state.core.zero = (res == 0) && state.core.zero;
+                state.core.sign = state.core.n ^ state.core.v;
+                state.core.write_reg(d, (res & 0xFF) as u8);
+            },
             &Sbci { d, k } => {
                 let rd = state.core.read_reg(d);
-                let r = rd as i16 - k as i16 - state.core.carry as i16;
-                state.core.write_reg(d, (r & 0xFF) as u8);
+                let res = rd as i16 - k as i16 - state.core.carry as i16;
 
                 // TODO: H flag
-                state.core.carry = r < 0;
-                state.core.v = calc_v(rd, k, (r & 0xFF) as u8);
-                state.core.n = (r >> 7) != 0;
-                state.core.zero = (r == 0) && state.core.zero;
+                state.core.carry = res < 0;
+                state.core.v = calc_v(rd, k, (res & 0xFF) as u8);
+                state.core.n = (res >> 7) != 0;
+                state.core.zero = (res == 0) && state.core.zero;
                 state.core.sign = state.core.n ^ state.core.v;
+                state.core.write_reg(d, (res & 0xFF) as u8);
             }
 
             &Sbiw { d, k } => {
@@ -570,6 +585,26 @@ impl Instruction {
             &Sts { r, k } => {
                 let rr = state.core.read_reg(r);
                 state.write_u8_noneeprom(k as usize, rr);
+            }
+
+            &Sub { d, r } => {
+                let rd = state.core.read_reg(d);
+                let rr = state.core.read_reg(r);
+                let res = rd as i16 - rr as i16;
+                state.core.carry = rr > rd;
+                // TODO: HV
+                set_zns(state, res as u8);
+                state.core.write_reg(d, (res & 0xFF) as u8);
+            },
+            &Subi { d, k } => {
+                let rd = state.core.read_reg(d);
+                let res = rd as i16 - k as i16;
+                state.core.write_reg(d, (res & 0xFF) as u8);
+
+                // TODO: H flag
+                state.core.carry = res < 0;
+                state.core.v = calc_v(rd, k, (res & 0xFF) as u8);
+                set_zns(state, (res & 0xFF) as u8);
             }
 
             &Invaild { opcode } => {
@@ -688,6 +723,105 @@ mod tests {
         cmd.execute(&mut vm).unwrap();
 
         assert_eq!(vm.core.read_reg(17), 42);
+    }
+
+    #[test]
+    fn execute_add() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(17, 34);
+        vm.core.write_reg(18, 12);
+
+        let cmd = Add { d: 17, r: 18 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(17), 46);
+        assert_eq!(vm.core.zero, false);
+        assert_eq!(vm.core.carry, false);
+    }
+
+    #[test]
+    fn execute_add_zero() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(17, 255);
+        vm.core.write_reg(18, 1);
+
+        let cmd = Add { d: 17, r: 18 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(17), 0);
+        assert_eq!(vm.core.zero, true);
+        assert_eq!(vm.core.carry, true);
+    }
+
+    #[test]
+    fn execute_add_carry() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(17, 1);
+        vm.core.write_reg(18, 1);
+        vm.core.carry = true;
+
+        let cmd = Adc { d: 17, r: 18 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(17), 3);
+        assert_eq!(vm.core.zero, false);
+        assert_eq!(vm.core.carry, false);
+    }
+
+    #[test]
+    fn execute_sub() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(0, 34);
+        vm.core.write_reg(1, 12);
+
+        let cmd = Sub { d: 0, r: 1 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(0), 22);
+        assert_eq!(vm.core.zero, false);
+        assert_eq!(vm.core.carry, false);
+    }
+
+    #[test]
+    fn execute_sub_zero() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(0, 55);
+        vm.core.write_reg(1, 55);
+
+        let cmd = Sub { d: 0, r: 1 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(0), 0);
+        assert_eq!(vm.core.zero, true);
+        assert_eq!(vm.core.carry, false);
+    }
+
+    #[test]
+    fn execute_sub_neg1() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(0, 50);
+        vm.core.write_reg(1, 100);
+
+        let cmd = Sub { d: 0, r: 1 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(0), as_unsigned(-50));
+        assert_eq!(vm.core.zero, false);
+        assert_eq!(vm.core.carry, true);
+    }
+
+    #[test]
+    fn execute_sub_neg2() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(0, as_unsigned(-100));
+        vm.core.write_reg(1, as_unsigned(-50));
+
+        let cmd = Sub { d: 0, r: 1 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(0), as_unsigned(-50));
+        assert_eq!(vm.core.zero, false);
+        assert_eq!(vm.core.carry, true);
     }
 
     #[test]

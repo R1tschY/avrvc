@@ -86,6 +86,7 @@ impl ObjDumpInstr for Instruction {
             &Push { r } => format!("push\tr{}", r),
             &Ret => String::from("ret"),
             &Rjmp { k } => format!("rjmp\t.{:+}", k * 2),
+            &Sbc { d, r } => format!("sbc\tr{}, r{}", d, r),
             &Sbci { d, k } => format!("sbci\tr{}, 0x{:02X}", d, k),
             &Sbiw { d, k } => format!("sbiw\tr{}, 0x{:02x}", d, k),
             &Sbrc { r, b } => format!("sbrc\tr{}, {}", r, b),
@@ -97,6 +98,8 @@ impl ObjDumpInstr for Instruction {
             &StdZ { q, r } => format!("std\tZ+{}, r{}", q, r),
             &Sts { r, k } => format!("sts\t0x{:02X}, r{}", k, r),
             &Sts16 { r, k } => format!("sts\t0x{:04X}, r{}", k, r),
+            &Sub { d, r } => format!("sub\tr{}, r{}", d, r),
+            &Subi { d, k } => format!("subi\tr{}, 0x{:02X}", d, k),
             &Invaild { .. } => format!("invalid"),
         }
     }
