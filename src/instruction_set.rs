@@ -41,6 +41,7 @@ pub enum Instruction {
     Cp { d: u8, r: u8},
     Cpc { d: u8, r: u8},
     Cpi { d: u8, k: u8 },
+    Dec { d: u8 },
     Elpm0,
     Elpm { d: u8 },
     ElpmInc { d: u8 },
@@ -54,6 +55,7 @@ pub enum Instruction {
     Lds { d: u8, k: u8 },
     Lds16 { d: u8, k: u16 },
     In  { d: u8, a: u8 },
+    Inc { d: u8 },
     Jmp { k: u32 },
     Mov { d: u8, r: u8 },
     Movw { d: u8, r: u8 },
@@ -337,6 +339,14 @@ impl Instruction {
                 set_zns(state, r);
             }
 
+            &Dec { d } => {
+                let rd = state.core.read_reg(d);
+                let res = ((rd as i16 - 1i16) & 0xFF) as u8;
+                state.core.write_reg(d, res);
+                state.core.v = rd == 0x80;
+                set_zns(state, res);
+            }
+
             &Elpm0 => { elpm(state, 0); },
             &Elpm { d } => { elpm(state, d); },
             &ElpmInc { d } => {
@@ -355,6 +365,14 @@ impl Instruction {
                 let io = state.read_io(a as usize, false);
                 state.core.write_reg(d, io);
             },
+
+            &Inc { d } => {
+                let rd = state.core.read_reg(d);
+                let res = ((rd as i16 + 1i16) & 0xFF) as u8;
+                state.core.write_reg(d, res);
+                state.core.v = rd == 0x7f;
+                set_zns(state, res);
+            }
 
             &Jmp { k } => {
                 state.core.pc = k as usize;
@@ -822,6 +840,53 @@ mod tests {
         assert_eq!(vm.core.read_reg(0), as_unsigned(-50));
         assert_eq!(vm.core.zero, false);
         assert_eq!(vm.core.carry, true);
+    }
+
+    #[test]
+    fn execute_dec() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(12, 0);
+
+        let cmd = Dec { d: 12 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(12), 0xFF);
+    }
+
+    #[test]
+    fn execute_dec_0x80() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(12, 0x80);
+
+        let cmd = Dec { d: 12 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(12), 0x7f);
+        assert_eq!(vm.core.v, true);
+    }
+
+    #[test]
+    fn execute_inc() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(12, 0xFF);
+
+        let cmd = Inc { d: 12 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(12), 0);
+        assert_eq!(vm.core.zero, true);
+    }
+
+    #[test]
+    fn execute_inc_0x7f() {
+        let mut vm = ATxmega128A4U.create_vm();
+        vm.core.write_reg(12, 0x7f);
+
+        let cmd = Inc { d: 12 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(12), 0x80);
+        assert_eq!(vm.core.v, true);
     }
 
     #[test]

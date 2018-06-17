@@ -59,6 +59,8 @@ impl ObjDumpInstr for Instruction {
             &Cpc { d, r } => format!("cpc\tr{}, r{}", d, r),
             &Cpi { d, k } => format!("cpi\tr{}, 0x{:02X}", d, k),
             &Com { d } => format!("com\tr{}", d),
+            &Dec { d } => format!("dec\tr{}", d),
+
             &Elpm0 => String::from("elpm"),
             &Elpm { d } => format!("elpm\tr{}, Z", d),
             &ElpmInc { d } => format!("elpm\tr{}, Z+", d),
@@ -72,6 +74,7 @@ impl ObjDumpInstr for Instruction {
             &Lds { d, k } => format!("lds\tr{}, 0x{:02X}", d, k),
             &Lds16 { d, k } => format!("lds\tr{}, 0x{:04X}", d, k),
             &In { d, a } => format!("in\tr{}, 0x{:02x}", d, a),
+            &Inc { d } => format!("inc\tr{}", d),
             &Jmp { k } => format_calljmp("jmp", k),
             &Nop => String::from("nop"),
             &Mov { d, r } => format!("mov\tr{}, r{}", d, r),

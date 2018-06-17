@@ -184,7 +184,7 @@ pub struct AvrDecoder {
 impl AvrDecoder {
 
     pub fn new() -> AvrDecoder {
-        use instruction_set::RegIncDec::*;
+        use instruction_set::RegIncDec;
         use instruction_set::Instruction::*;
 
         let mut instr16 = HashMap::new();
@@ -196,28 +196,30 @@ impl AvrDecoder {
         instr16.insert(0b_1001_0101_1101_1000_u16, Elpm0);
 
         add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Com { d });
+        add_instr5(&mut instr16, 0b_1001_0100_0000_1010_u16, |d| Dec { d });
+        add_instr5(&mut instr16, 0b_1001_0100_0000_0011_u16, |d| Inc { d });
         add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Pop { r });
         add_instr5(&mut instr16, 0b_1001_0010_0000_1111_u16, |r| Push { r });
         add_instr5(&mut instr16, 0b_1001_0000_0000_0110_u16, |d| Elpm { d });
         add_instr5(&mut instr16, 0b_1001_0000_0000_0111_u16, |d| ElpmInc { d });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1100_u16, |d| LdX { d, xop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1101_u16, |d| LdX { d, xop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1110_u16, |d| LdX { d, xop: Dec });
-        add_instr5(&mut instr16, 0b_1000_0000_0000_1000_u16, |d| LdY { d, yop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1001_u16, |d| LdY { d, yop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_1010_u16, |d| LdY { d, yop: Dec });
-        add_instr5(&mut instr16, 0b_1000_0000_0000_0000_u16, |d| LdZ { d, zop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_0001_u16, |d| LdZ { d, zop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0000_0000_0010_u16, |d| LdZ { d, zop: Dec });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1100_u16, |r| StX { r, xop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1101_u16, |r| StX { r, xop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1110_u16, |r| StX { r, xop: Dec });
-        add_instr5(&mut instr16, 0b_1000_0010_0000_1000_u16, |r| StY { r, yop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1001_u16, |r| StY { r, yop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_1010_u16, |r| StY { r, yop: Dec });
-        add_instr5(&mut instr16, 0b_1000_0010_0000_0000_u16, |r| StZ { r, zop: Unchanged });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_0001_u16, |r| StZ { r, zop: Inc });
-        add_instr5(&mut instr16, 0b_1001_0010_0000_0010_u16, |r| StZ { r, zop: Dec });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1100_u16, |d| LdX { d, xop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1101_u16, |d| LdX { d, xop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1110_u16, |d| LdX { d, xop: RegIncDec::Dec });
+        add_instr5(&mut instr16, 0b_1000_0000_0000_1000_u16, |d| LdY { d, yop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1001_u16, |d| LdY { d, yop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_1010_u16, |d| LdY { d, yop: RegIncDec::Dec });
+        add_instr5(&mut instr16, 0b_1000_0000_0000_0000_u16, |d| LdZ { d, zop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0001_u16, |d| LdZ { d, zop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0000_0000_0010_u16, |d| LdZ { d, zop: RegIncDec::Dec });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1100_u16, |r| StX { r, xop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1101_u16, |r| StX { r, xop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1110_u16, |r| StX { r, xop: RegIncDec::Dec });
+        add_instr5(&mut instr16, 0b_1000_0010_0000_1000_u16, |r| StY { r, yop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1001_u16, |r| StY { r, yop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_1010_u16, |r| StY { r, yop: RegIncDec::Dec });
+        add_instr5(&mut instr16, 0b_1000_0010_0000_0000_u16, |r| StZ { r, zop: RegIncDec::Unchanged });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_0001_u16, |r| StZ { r, zop: RegIncDec::Inc });
+        add_instr5(&mut instr16, 0b_1001_0010_0000_0010_u16, |r| StZ { r, zop: RegIncDec::Dec });
 
         add_instr7(&mut instr16, 0b_1111_0100_0000_0000_u16, |k| Brcc { k });
         add_instr7(&mut instr16, 0b_1111_0000_0000_0000_u16, |k| Brcs { k });
