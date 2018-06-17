@@ -196,6 +196,8 @@ impl AvrDecoder {
         instr16.insert(0b_1001_0101_1101_1000_u16, Elpm0);
 
         add_instr5(&mut instr16, 0b_1001_0100_0000_0000_u16, |d| Com { d });
+        add_instr5(&mut instr16, 0b_1001_0100_0000_0110_u16, |d| Lsr { d });
+        add_instr5(&mut instr16, 0b_1001_0100_0000_0101_u16, |d| Asr { d });
         add_instr5(&mut instr16, 0b_1001_0100_0000_1010_u16, |d| Dec { d });
         add_instr5(&mut instr16, 0b_1001_0100_0000_0011_u16, |d| Inc { d });
         add_instr5(&mut instr16, 0b_1001_0000_0000_1111_u16, |r| Pop { r });

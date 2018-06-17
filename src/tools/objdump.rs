@@ -34,6 +34,7 @@ impl ObjDumpInstr for Instruction {
             &Adiw { d, k } => format!("adiw\tr{}, 0x{:02x}", d, k),
             &And { d, r } => format!("and\tr{}, r{}", d, r),
             &Andi { d, k } => format!("andi\tr{}, 0x{:02X}", d, k),
+            &Asr { d } => format!("asr\tr{}", d),
             &Break => String::from("break"),
 
             &Brcc { k } => format!("brcc\t.{:+}", k * 2),
@@ -73,6 +74,7 @@ impl ObjDumpInstr for Instruction {
             &Ldi { d, k } => format!("ldi\tr{}, 0x{:02X}", d, k),
             &Lds { d, k } => format!("lds\tr{}, 0x{:02X}", d, k),
             &Lds16 { d, k } => format!("lds\tr{}, 0x{:04X}", d, k),
+            &Lsr { d } => format!("lsr\tr{}", d),
             &In { d, a } => format!("in\tr{}, 0x{:02x}", d, a),
             &Inc { d } => format!("inc\tr{}", d),
             &Jmp { k } => format_calljmp("jmp", k),

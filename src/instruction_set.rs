@@ -18,6 +18,7 @@ pub enum Instruction {
     Adiw { d: u8, k: u8 },
     And { d: u8, r: u8 },
     Andi { d: u8, k: u8 },
+    Asr { d: u8 },
     Break,
     Brcc { k: i8 },
     Brcs { k: i8 },
@@ -54,6 +55,7 @@ pub enum Instruction {
     Ldi { d: u8, k: u8 },
     Lds { d: u8, k: u8 },
     Lds16 { d: u8, k: u16 },
+    Lsr { d: u8 },
     In  { d: u8, a: u8 },
     Inc { d: u8 },
     Jmp { k: u32 },
@@ -260,6 +262,17 @@ impl Instruction {
                 set_zns(state, rr);
             }
 
+            &Asr { d } => {
+                let rd = state.core.read_reg(d);
+                let res = rd >> 1;
+                state.core.carry = (rd & 1) != 0;
+                state.core.n = (res >> 7) != 0;
+                state.core.v = state.core.n ^ state.core.carry;
+                state.core.zero = res == 0;
+                state.core.sign = state.core.n ^ state.core.v;
+                state.core.write_reg(d, res);
+            }
+
             &Break => return Err(CpuSignal::Break),
 
             &Brcc { k } => if !state.core.carry { return rjmp(state, k as i32); },
@@ -464,6 +477,17 @@ impl Instruction {
                 let r = state.read_u8_noneeprom(k as usize, false);
                 state.core.write_reg(d, r);
             },
+
+            &Lsr { d } => {
+                let rd = state.core.read_reg(d);
+                let res = rd >> 1;
+                state.core.carry = (rd & 1) != 0;
+                state.core.sign = state.core.carry;
+                state.core.v = state.core.carry;
+                state.core.n = false;
+                state.core.zero = res == 0;
+                state.core.write_reg(d, res);
+            }
 
             &Or { d, r } => {
                 let rr = state.core.read_reg(d) | state.core.read_reg(r);
