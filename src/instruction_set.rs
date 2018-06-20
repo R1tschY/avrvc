@@ -72,6 +72,7 @@ pub enum Instruction {
     Push { r: u8 },
     Ret,
     Rjmp { k: i16 },
+    Ror { d: u8 },
     Sbc { d: u8, r: u8 },
     Sbci { d: u8, k: u8 },
     Sbiw { d: u8, k: u8 },
@@ -530,6 +531,17 @@ impl Instruction {
                     state.core.cycles += 3;
                 }
             },
+
+            &Ror { d } => {
+                let rd = state.core.read_reg(d);
+                let res = rd >> 1 | ((state.core.carry as u8) << 7);
+                state.core.carry = (rd & 1) != 0;
+                state.core.n = (res >> 7) != 0;
+                state.core.v = state.core.n ^ state.core.carry;
+                state.core.zero = res == 0;
+                state.core.sign = state.core.n ^ state.core.v;
+                state.core.write_reg(d, res);
+            }
 
             &Rjmp { k } => return rjmp(state, k as i32),
 

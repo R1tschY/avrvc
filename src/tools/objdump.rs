@@ -90,6 +90,7 @@ impl ObjDumpInstr for Instruction {
             &Pop { r } => format!("pop\tr{}", r),
             &Push { r } => format!("push\tr{}", r),
             &Ret => String::from("ret"),
+            &Ror { d } => format!("ror\tr{}", d),
             &Rjmp { k } => format!("rjmp\t.{:+}", k * 2),
             &Sbc { d, r } => format!("sbc\tr{}, r{}", d, r),
             &Sbci { d, k } => format!("sbci\tr{}, 0x{:02X}", d, k),
