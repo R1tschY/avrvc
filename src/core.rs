@@ -399,9 +399,12 @@ impl AvrVm {
         }
     }
 
-    pub fn crash(&mut self, crash_info: CpuSignal) -> Result<(), CpuSignal> {
-        self.core.pc = 0; // reset
+    pub fn reset(&mut self) {
+        self.core.pc = 0;
+    }
 
+    pub fn crash(&mut self, crash_info: CpuSignal) -> Result<(), CpuSignal> {
+        self.reset();
         Err(crash_info)
     }
 

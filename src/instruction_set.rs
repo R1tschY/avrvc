@@ -70,6 +70,7 @@ pub enum Instruction {
     Out { r: u8, a: u8 },
     Pop { r: u8 },
     Push { r: u8 },
+    Rcall { k: i16 },
     Ret,
     Rjmp { k: i16 },
     Ror { d: u8 },
@@ -118,17 +119,23 @@ fn calc_v(rd: u8, rr: u8, r: u8) -> bool {
         | (!rd.is_bit_set(7) & rr.is_bit_set(7) & r.is_bit_set(7))
 }
 
-fn rjmp(vm: &mut AvrVm, k: i32) -> Result<(), CpuSignal> {
-    let new_pc = vm.core.pc as i32 + k as i32;
+fn relative_pc(vm: &mut AvrVm, k: i32) -> Result<usize, CpuSignal> {
+    let new_pc = vm.core.pc as i32 + k;
     if new_pc < 0 {
-        vm.crash(CpuSignal::PcOutOfBounds {
+        vm.reset();
+        Err(CpuSignal::PcOutOfBounds {
             pc: new_pc as i32
         })
     } else {
-        vm.core.pc = new_pc as usize;
-        vm.core.cycles += 1;
-        Ok(())
+        Ok(new_pc as usize)
     }
+}
+
+fn rjmp(vm: &mut AvrVm, k: i32) -> Result<(), CpuSignal> {
+    let new_pc = relative_pc(vm, k)?;
+    vm.core.pc = new_pc as usize;
+    vm.core.cycles += 1;
+    Ok(())
 }
 
 fn ldd(vm: &mut AvrVm, yz: u32, q: u8, d: u8) {
@@ -216,6 +223,26 @@ fn elpm(vm: &mut AvrVm, d: u8) -> u32 {
     z as u32
 }
 
+fn call(vm: &mut AvrVm, dest: usize) {
+    let pc = vm.core.pc;
+    if vm.info.pc_bytes == 3 {
+        vm.push3((pc + 1) as u32);
+        if vm.info.xmega {
+            vm.core.cycles += 3;
+        } else {
+            vm.core.cycles += 4;
+        }
+    } else {
+        vm.push2((pc + 1) as u16);
+        if vm.info.xmega {
+            vm.core.cycles += 2;
+        } else {
+            vm.core.cycles += 3;
+        }
+    }
+    vm.core.pc = dest;
+}
+
 impl Instruction {
 
     /// execute instruction
@@ -293,25 +320,7 @@ impl Instruction {
             &Brvc { k } => if !state.core.v { return rjmp(state, k as i32); },
             &Brvs { k } => if state.core.v { return rjmp(state, k as i32); },
 
-            &Call { k } => {
-                let pc = state.core.pc;
-                if state.info.pc_bytes == 3 {
-                    state.push3((pc + 1) as u32);
-                    if state.info.xmega {
-                        state.core.cycles += 3;
-                    } else {
-                        state.core.cycles += 4;
-                    }
-                } else {
-                    state.push2((pc + 1) as u16);
-                    if state.info.xmega {
-                        state.core.cycles += 2;
-                    } else {
-                        state.core.cycles += 3;
-                    }
-                }
-                state.core.pc = k as usize;
-            },
+            &Call { k } => call(state, k as usize),
 
             &Cli => state.core.interrupt = false,
 
@@ -520,6 +529,11 @@ impl Instruction {
                 if !state.info.xmega {
                     state.core.cycles += 1;
                 }
+            },
+
+            &Rcall { k } => {
+                let new_pc = relative_pc(state, k as i32)?;
+                call(state, new_pc);
             },
 
             &Ret => {

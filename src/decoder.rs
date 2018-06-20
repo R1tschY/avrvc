@@ -177,6 +177,16 @@ fn add_instr7(
     }
 }
 
+fn add_instr12(
+    instr16: &mut HashMap<u16, Instruction>,
+    base: u16,
+    factory: fn(i16) -> Instruction
+) {
+    for k in -2048i16..2048i16 {
+        instr16.insert(base | (k & 0x0FFF) as u16, factory(k));
+    }
+}
+
 pub struct AvrDecoder {
     instr16: HashMap<u16, Instruction>
 }
@@ -241,6 +251,9 @@ impl AvrDecoder {
         add_instr7(&mut instr16, 0b_1111_0100_0000_0011_u16, |k| Brvc { k });
         add_instr7(&mut instr16, 0b_1111_0000_0000_0011_u16, |k| Brvs { k });
 
+        add_instr12(&mut instr16, 0b_1101_0000_0000_0000_u16, |k| Rcall { k });
+        add_instr12(&mut instr16, 0b_1011_0000_0000_0000_u16, |k| Rjmp { k });
+
         add_instr26(&mut instr16, 0b_1001_0111_0000_0000_u16, |d, k| Sbiw { d, k });
         add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Adiw { d, k });
 
@@ -287,13 +300,6 @@ impl AvrDecoder {
                     0b_1011_1000_0000_0000_u16 | encode_56(r, a),
                     Out { r, a });
             }
-        }
-
-        // RJMP
-        for k in -2048i16..2048i16 {
-            instr16.insert(
-                0b_1100_0000_0000_0000_u16 | (k & 0x0FFF) as u16,
-                Rjmp { k });
         }
 
         // IN
