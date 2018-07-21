@@ -416,6 +416,7 @@ impl AvrVm {
 
 }
 
+
 /// core informations needed for instruction execution
 #[derive(Clone)]
 pub struct AvrVmInfo {
@@ -440,6 +441,7 @@ pub struct AvrVmInfo {
 }
 
 impl AvrVmInfo {
+    // TODO: move to AvrMcuSpec::create_info
     pub fn from_name(name: &str) -> AvrVmInfo {
         let register_service = McuIoRegistersService::new();
         let infos = register_service.get_mcu_registers(name).unwrap();

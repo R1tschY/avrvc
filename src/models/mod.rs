@@ -1,4 +1,5 @@
 use core::AvrVm;
+use emulator::AvrEmulator;
 
 pub mod xmega_au;
 pub mod register_service;
@@ -9,7 +10,12 @@ pub mod envmodel;
 /// model of avr controller type
 pub trait AvrModel {
 
-    fn create_vm(&self) -> AvrVm;
+    //#[deprecated(note="please use `create_emulator` instead")]
+    fn create_vm(&self) -> AvrVm {
+        self.create_emulator().vm
+    }
+
+    fn create_emulator(&self) -> AvrEmulator;
 
 }
 

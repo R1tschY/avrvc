@@ -3,7 +3,8 @@ use core::AvrVm;
 use core::AvrVmInfo;
 use models::register_gpio;
 use models::AvrMcu;
-use models::usart::register_usart;
+use models::usart::register_usarts;
+use emulator::AvrEmulator;
 
 pub enum XmegaA4U {
     ATxmega16A4U,
@@ -28,13 +29,12 @@ impl AvrMcu for XmegaA4U {
 
 impl AvrModel for XmegaA4U {
     fn create_vm(&self) -> AvrVm {
-        let info = AvrVmInfo::from_name(self.name());
-        let mut vm = AvrVm::new(&info);
+        self.create_emulator().vm
+    }
 
-        register_gpio(&mut vm);
-        register_usart(&mut vm);
-
-        vm.core.sp = info.ram.end - 1;
-        vm
+    fn create_emulator(&self) -> AvrEmulator {
+        let mut emu = AvrEmulator::from_name(&self.name());
+        emu.vm.core.sp = emu.vm.info.ram.end - 1;
+        emu
     }
 }

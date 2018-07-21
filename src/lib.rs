@@ -18,3 +18,4 @@ pub mod gdb;
 pub mod models;
 pub mod bits;
 pub mod bytelevel;
+pub mod emulator;

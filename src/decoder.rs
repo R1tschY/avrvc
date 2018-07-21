@@ -252,7 +252,7 @@ impl AvrDecoder {
         add_instr7(&mut instr16, 0b_1111_0000_0000_0011_u16, |k| Brvs { k });
 
         add_instr12(&mut instr16, 0b_1101_0000_0000_0000_u16, |k| Rcall { k });
-        add_instr12(&mut instr16, 0b_1011_0000_0000_0000_u16, |k| Rjmp { k });
+        add_instr12(&mut instr16, 0b_1100_0000_0000_0000_u16, |k| Rjmp { k });
 
         add_instr26(&mut instr16, 0b_1001_0111_0000_0000_u16, |d, k| Sbiw { d, k });
         add_instr26(&mut instr16, 0b_1001_0110_0000_0000_u16, |d, k| Adiw { d, k });

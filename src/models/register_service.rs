@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 
-pub type IoRegAddrs = HashMap<&'static str, usize>;
+pub type IoRegAddrs = HashMap<&'static str, usize>;  // TODO: rename to AvrMcuSpec
 
-pub struct McuIoRegistersService {
+pub struct McuIoRegistersService { // TODO: rename to AvrMcuSpecService
     mcus: HashMap<&'static str, IoRegAddrs>
 }
 
