@@ -8,6 +8,7 @@ use std::process::Command;
 use avrvc::emulator::AvrEmulator;
 use avrvc::executable::read_executable_file;
 use avrvc::models::AvrModel;
+use avrvc::core::CpuSignal;
 
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -114,4 +115,16 @@ pub fn setup_emulator(srcfilename: &str, model: &AvrModel, flags: &[&str]) -> Av
     let mut emulator = model.create_emulator();
     emulator.vm.write_flash(0, &bytes);
     emulator
+}
+
+
+/// run emulator a maximum of `max_cycles` cycles or return on first signal.
+pub fn run_emulator(emulator: &AvrEmulator, max_cycles: usize) -> Option<CpuSignal> {
+    for _i in 0..max_cycles {
+        if let Err(signal) = emulator.vm.step() {
+            return Some(signal);
+        }
+    }
+
+    None
 }
