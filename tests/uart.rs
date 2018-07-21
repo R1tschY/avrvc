@@ -4,70 +4,57 @@ extern crate stderrlog;
 #[macro_use]
 extern crate pretty_assertions;
 
+mod common;
+
 use avrvc::executable::read_executable_file;
 use avrvc::tools::objdump::objdump;
-use std::fs::File;
-use std::io::Read;
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::core::CpuSignal;
 use avrvc::models::AvrModel;
 use stderrlog::Timestamp;
-
-#[test]
-fn objdump_uart() {
-    let bytes = read_executable_file("tests/uart/main.bin");
-    let actual = objdump(&bytes) + "\n";
-
-    let mut f = File::open("tests/uart/main.S").expect("file not found");
-    let mut expected = String::new();
-    f.read_to_string(&mut expected).expect("something went wrong reading the file");
-
-    // for pretty diff
-    let actual_lines: Vec<_> = actual.split("\n").collect();
-    let expected_lines: Vec<_> = expected.split("\n").collect();
-
-    assert_eq!(expected_lines, actual_lines);
-}
-
+use common::compile_test;
 
 #[test]
 fn run_uart() {
+    use common::BinaryType::*;
+
     stderrlog::new()
         .verbosity(3)
         .timestamp(Timestamp::Off)
         .init()
         .unwrap();
 
-    let bytes = read_executable_file("tests/uart/main.bin");
+    let binary = compile_test("sources/usart_out.c", Binary, &ATxmega128A4U, &vec![]);
+
+    let bytes = read_executable_file(&binary);
     let _actual = objdump(&bytes) + "\n";
 
-    let mut vm = ATxmega128A4U.create_vm();
-    vm.write_flash(0, &bytes);
+    let mut emulator = ATxmega128A4U.create_emulator();
+    emulator.vm.write_flash(0, &bytes);
 
-    vm.debugger.trace = true;
-    vm.debugger.add_breakpoint(0x11A);
+    emulator.vm.debugger.trace = true;
 
     for _i in 0..1000 {
-        if let Err(signal) = vm.step() {
+        if let Err(signal) = emulator.vm.step() {
             assert_eq!(signal, CpuSignal::Break);
             break;
         }
     }
 
-//    assert_eq!(vm.read_mem(0x3FFF - 0), 0x0c);
-//    assert_eq!(vm.read_mem(0x3FFF - 1), 0x01);
-//    assert_eq!(vm.read_mem(0x3FFF - 2), 0x00);
-//    assert_eq!(vm.read_mem(0x3FFF - 3), 0xff);
-//    assert_eq!(vm.read_mem(0x3FFF - 4), 0x3f);
-//    assert_eq!(vm.read_mem(0x3FFF - 5), 0x00);
-//    assert_eq!(vm.pc, 0x11A);
-//    assert_eq!(vm.sp, 0x3fff);
-//    assert!(vm.cycles >= 37 && vm.cycles <= 40);
-//    assert_eq!(vm.read_reg(24), 0x2A);
-//    assert_eq!(vm.read_reg(28), 0xFF);
-//    assert_eq!(vm.read_reg(29), 0x3F);
-//    assert_eq!(vm.read_x(), 0x0000);
-//    assert_eq!(vm.read_y(), 0x3FFF);
-//    assert_eq!(vm.read_z(), 0x0000);
-//    assert_eq!(vm.read_sreg(), 0x02);
+//    assert_eq!(emulator.read_mem(0x3FFF - 0), 0x0c);
+//    assert_eq!(emulator.read_mem(0x3FFF - 1), 0x01);
+//    assert_eq!(emulator.read_mem(0x3FFF - 2), 0x00);
+//    assert_eq!(emulator.read_mem(0x3FFF - 3), 0xff);
+//    assert_eq!(emulator.read_mem(0x3FFF - 4), 0x3f);
+//    assert_eq!(emulator.read_mem(0x3FFF - 5), 0x00);
+//    assert_eq!(emulator.pc, 0x11A);
+//    assert_eq!(emulator.sp, 0x3fff);
+//    assert!(emulator.cycles >= 37 && emulator.cycles <= 40);
+//    assert_eq!(emulator.read_reg(24), 0x2A);
+//    assert_eq!(emulator.read_reg(28), 0xFF);
+//    assert_eq!(emulator.read_reg(29), 0x3F);
+//    assert_eq!(emulator.read_x(), 0x0000);
+//    assert_eq!(emulator.read_y(), 0x3FFF);
+//    assert_eq!(emulator.read_z(), 0x0000);
+//    assert_eq!(emulator.read_sreg(), 0x02);
 }

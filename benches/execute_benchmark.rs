@@ -14,10 +14,11 @@ use std::io::Read;
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::models::AvrModel;
 use time::precise_time_s;
+use std::path::Path;
 
 #[test]
 fn objdump_execute_benchmark() {
-    let bytes = read_executable_file("benches/execute_benchmark/main.bin");
+    let bytes = read_executable_file(Path::new("benches/execute_benchmark/main.bin"));
     let actual = objdump(&bytes) + "\n";
 
     let mut f = File::open("benches/execute_benchmark/main.S").expect("file not found");
@@ -33,7 +34,7 @@ fn objdump_execute_benchmark() {
 
 #[test]
 fn run_execute_benchmark() {
-    let bytes = read_executable_file("benches/execute_benchmark/main.bin");
+    let bytes = read_executable_file(Path::new("benches/execute_benchmark/main.bin"));
     let _actual = objdump(&bytes) + "\n";
 
     let mut vm = ATxmega128A4U.create_vm();

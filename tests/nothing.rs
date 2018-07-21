@@ -10,10 +10,11 @@ use std::io::Read;
 use avrvc::core::CpuSignal;
 use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::models::AvrModel;
+use std::path::Path;
 
 #[test]
 fn objdump_nothing() {
-    let bytes = read_executable_file("tests/nothing/main.bin");
+    let bytes = read_executable_file(Path::new("tests/nothing/main.bin"));
     let actual = objdump(&bytes) + "\n";
 
     let mut f = File::open("tests/nothing/main.S").expect("file not found");
@@ -30,7 +31,7 @@ fn objdump_nothing() {
 
 #[test]
 fn run_nothing() {
-    let bytes = read_executable_file("tests/nothing/main.bin");
+    let bytes = read_executable_file(Path::new("tests/nothing/main.bin"));
     let _actual = objdump(&bytes) + "\n";
 
     let mut vm = ATxmega128A4U.create_vm();

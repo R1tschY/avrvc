@@ -6,10 +6,11 @@ extern crate pretty_assertions;
 use avrvc::executable::read_executable_file;
 use avrvc::tools::objdump::objdump;
 use std::fs;
+use std::path::Path;
 
 #[test]
 fn all_instrs() {
-    let bytes = read_executable_file("tests/all_instrs/all_instrs.bin");
+    let bytes = read_executable_file(Path::new("tests/all_instrs/all_instrs.bin"));
     let actual = objdump(&bytes) + "\n";
 
     let expected = fs::read_to_string("tests/all_instrs/main.S").unwrap();

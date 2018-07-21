@@ -7,10 +7,11 @@ use avrvc::executable::read_executable_file;
 use avrvc::tools::objdump::objdump;
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
 #[test]
 fn objdump_ops64bit() {
-    let bytes = read_executable_file("tests/ops64bit/main.bin");
+    let bytes = read_executable_file(Path::new("tests/ops64bit/main.bin"));
     let actual = objdump(&bytes) + "\n";
 
     let mut f = File::open("tests/ops64bit/main.S").expect("file not found");

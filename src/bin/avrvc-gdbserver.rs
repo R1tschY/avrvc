@@ -14,6 +14,7 @@ use avrvc::models::xmega_au::XmegaA4U::ATxmega128A4U;
 use avrvc::models::AvrModel;
 use stderrlog::Timestamp;
 use avrvc::executable::read_executable_file;
+use std::path::Path;
 
 const USAGE: &'static str = "
 Naval Fate.
@@ -58,7 +59,7 @@ fn main() {
     println!();
 
     let mut vm = ATxmega128A4U.create_vm();
-    let flash = read_executable_file(&args.arg_flash);
+    let flash = read_executable_file(Path::new(&args.arg_flash));
     vm.write_flash(0, &flash);
 
     // Start the runtime and spin up the server
