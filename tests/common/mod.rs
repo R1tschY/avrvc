@@ -9,6 +9,8 @@ use avrvc::emulator::AvrEmulator;
 use avrvc::executable::read_executable_file;
 use avrvc::models::AvrModel;
 use avrvc::core::CpuSignal;
+use stderrlog::Timestamp;
+use stderrlog;
 
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -119,7 +121,7 @@ pub fn setup_emulator(srcfilename: &str, model: &AvrModel, flags: &[&str]) -> Av
 
 
 /// run emulator a maximum of `max_cycles` cycles or return on first signal.
-pub fn run_emulator(emulator: &AvrEmulator, max_cycles: usize) -> Option<CpuSignal> {
+pub fn run_emulator(emulator: &mut AvrEmulator, max_cycles: usize) -> Option<CpuSignal> {
     for _i in 0..max_cycles {
         if let Err(signal) = emulator.vm.step() {
             return Some(signal);
@@ -127,4 +129,12 @@ pub fn run_emulator(emulator: &AvrEmulator, max_cycles: usize) -> Option<CpuSign
     }
 
     None
+}
+
+pub fn setup_test() {
+    stderrlog::new()
+        .verbosity(3)
+        .timestamp(Timestamp::Off)
+        .init()
+        .unwrap();
 }
