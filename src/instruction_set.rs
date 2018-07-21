@@ -2,7 +2,14 @@
 use core::AvrVm;
 use core::CpuSignal;
 use bits::BitOps;
-use bytes::LittleEndian;
+
+use decoder::AvrDecoder;
+use byte_convert::u16le;
+use core::DataMemoryType;
+use byte_convert::bit_at_u16;
+use byte_convert::as_signed;
+use byte_convert::as_unsigned;
+use byte_convert::as_unsigned16;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RegIncDec {
@@ -92,15 +99,7 @@ pub enum Instruction {
     Invaild { opcode: u16 }
 }
 
-use instruction_set::Instruction::*;
-use decoder::AvrDecoder;
-use byte_convert::u16le;
-use core::DataMemoryType;
-use byte_convert::bit_at;
-use byte_convert::bit_at_u16;
-use byte_convert::as_signed;
-use byte_convert::as_unsigned;
-use byte_convert::as_unsigned16;
+
 
 fn set_zns(state: &mut AvrVm, res: u8) {
     state.core.n = (res >> 7) != 0;
@@ -249,6 +248,8 @@ impl Instruction {
     ///
     /// no checks on state are done!
     pub fn execute(&self, state: &mut AvrVm) -> Result<(), CpuSignal> {
+        use instruction_set::Instruction::*;
+
         state.core.pc += 1;
         state.core.cycles += 1;
 
@@ -686,6 +687,8 @@ impl Instruction {
 
     /// size in words
     pub fn size(&self) -> usize {
+        use instruction_set::Instruction::*;
+
         match self {
             &Jmp { .. } | &Call { .. } | &Lds16 { .. } | &Sts16 { .. } => 2,
             _ => 1
@@ -698,6 +701,7 @@ mod tests {
     use super::*;
     use models::xmega_au::XmegaA4U::ATxmega128A4U;
     use models::AvrModel;
+    use instruction_set::Instruction::*;
     use std::mem;
 
     #[test]
