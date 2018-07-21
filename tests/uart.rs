@@ -13,6 +13,7 @@ use avrvc::core::CpuSignal;
 use avrvc::models::AvrModel;
 use stderrlog::Timestamp;
 use common::compile_test;
+use common::setup_emulator;
 
 #[test]
 fn run_uart() {
@@ -24,13 +25,7 @@ fn run_uart() {
         .init()
         .unwrap();
 
-    let binary = compile_test("sources/usart_out.c", Binary, &ATxmega128A4U, &vec![]);
-
-    let bytes = read_executable_file(&binary);
-    let _actual = objdump(&bytes) + "\n";
-
-    let mut emulator = ATxmega128A4U.create_emulator();
-    emulator.vm.write_flash(0, &bytes);
+    let mut emulator = setup_emulator("sources/usart_out.c", &ATxmega128A4U, &vec![]);
 
     emulator.vm.debugger.trace = true;
 

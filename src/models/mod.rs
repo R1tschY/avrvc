@@ -10,6 +10,8 @@ pub mod envmodel;
 /// model of avr controller type
 pub trait AvrModel {
 
+    fn mcu(&self) -> &AvrMcu;
+
     //#[deprecated(note="please use `create_emulator` instead")]
     fn create_vm(&self) -> AvrVm {
         self.create_emulator().vm

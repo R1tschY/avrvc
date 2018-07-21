@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
-extern crate avrvc;
-
 use avrvc::models::AvrMcu;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use avrvc::emulator::AvrEmulator;
+use avrvc::executable::read_executable_file;
+use avrvc::models::AvrModel;
 
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -101,4 +102,16 @@ pub fn compile_test(srcfilename: &str, outtype: BinaryType, mcu: &AvrMcu, flags:
     }
 
     destination
+}
+
+
+/// compile source and create emulator
+pub fn setup_emulator(srcfilename: &str, model: &AvrModel, flags: &[&str]) -> AvrEmulator {
+    let binary = compile_test(srcfilename, BinaryType::Binary, model.mcu(), flags);
+
+    let bytes = read_executable_file(&binary);
+
+    let mut emulator = model.create_emulator();
+    emulator.vm.write_flash(0, &bytes);
+    emulator
 }

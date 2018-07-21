@@ -28,6 +28,10 @@ impl AvrMcu for XmegaA4U {
 
 
 impl AvrModel for XmegaA4U {
+    fn mcu(&self) -> &AvrMcu {
+        self
+    }
+
     fn create_vm(&self) -> AvrVm {
         self.create_emulator().vm
     }
