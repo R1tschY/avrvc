@@ -5,13 +5,14 @@ use models::usart::register_usarts;
 use std::sync::Arc;
 use std::sync::Mutex;
 use models::usart::Usart;
+use models::usart::Usarts;
 
 
 pub struct AvrEmulator {
     pub vm: AvrVm,
 
     // peripherals
-    pub usarts: Vec<Arc<Mutex<Usart>>>
+    pub usarts: Usarts
 }
 
 impl AvrEmulator {

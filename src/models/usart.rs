@@ -4,9 +4,17 @@ use std::sync::Arc;
 use core::AvrCoreState;
 use std::sync::Mutex;
 use byte_convert::u8bits;
+use bus::Bus;
+use bus::BusReader;
+use byte_convert::u8bits_unpack;
+use byte_convert::bit_at;
 
 
 static USART_INDEXES: [&'static str; 8] = ["C0", "C1", "D0", "D1", "E0", "E1", "F0", "F1"];
+
+pub type Usarts = HashMap<&'static str, Arc<Mutex<Usart>>>;
+pub type UsartTxSignal = Bus<u8>;
+pub type UsartTxConnection = BusReader<u8>;
 
 pub struct Usart {
     rx: u8,
@@ -16,6 +24,7 @@ pub struct Usart {
     rx_enable: bool,
     tx_enable: bool,
     data_empty: bool,
+    tx_signal: UsartTxSignal,
 
     index: &'static str
 }
@@ -30,22 +39,30 @@ impl Usart {
             rx_enable: false,
             tx_enable: false,
             data_empty: true,
+            tx_signal: Bus::new(1024),
             index
         }
     }
 
     pub fn get_index(&self) -> &str { self.index }
 
+    pub fn connect_to_tx(&mut self) -> UsartTxConnection {
+        self.tx_signal.add_rx()
+    }
+
     fn data_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
         0
     }
 
     fn data_write(&mut self, core: &mut AvrCoreState, value: u8) {
-        info!(target: "avrvc::usart", "USART Tx {}: 0x{:02x} {}",
-              self.index, value,
-              if value.is_ascii_graphic() { value as char } else { '?' });
-        if self.rx_enable {
-            // self.env.send_event(UartTx(index, value))
+        if self.tx_enable {
+            info!(
+                target: "avrvc::usart",
+                "USART {} Tx: 0x{:02x} {}",
+                self.index,
+                value,
+                if value.is_ascii_graphic() { value as char } else { '?' });
+            self.tx_signal.broadcast(value);
         }
     }
 
@@ -66,12 +83,25 @@ impl Usart {
     fn status_write(&mut self, core: &mut AvrCoreState, value: u8) {
 
     }
+
+    fn control_b_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
+        0
+    }
+
+    fn control_b_write(&mut self, core: &mut AvrCoreState, value: u8) {
+        self.rx_enable = bit_at(value, 4);
+        self.tx_enable = bit_at(value, 3);
+        info!(
+            target: "avrvc::usart",
+            "USART {} Control B: RXEN={} TXEN={}",
+            self.index, self.rx_enable as u8, self.tx_enable as u8);
+    }
 }
 
 
-pub fn register_usarts(vm: &mut AvrVm) -> Vec<Arc<Mutex<Usart>>> {
-    USART_INDEXES.iter().flat_map(
-        |index| register_one_usart(vm, index)
+pub fn register_usarts(vm: &mut AvrVm) -> Usarts {
+    USART_INDEXES.iter().filter_map(
+        |&index| register_one_usart(vm, index).map(|usart| (index, usart))
     ).collect()
 }
 
@@ -89,6 +119,8 @@ fn register_one_usart(
     let usart2 = Arc::clone(&usart);
     let usart3 = Arc::clone(&usart);
     let usart4 = Arc::clone(&usart);
+    let usart5 = Arc::clone(&usart);
+    let usart6 = Arc::clone(&usart);
 
     vm.register_io(
         ioregs[&*format!("USART{}_DATA", index)],
@@ -99,6 +131,11 @@ fn register_one_usart(
         ioregs[&*format!("USART{}_STATUS", index)],
         Box::new(move |core, _, view| usart3.lock().unwrap().status_read(core, view)),
         Box::new(move |core, _, value| usart4.lock().unwrap().status_write(core, value))
+    );
+    vm.register_io(
+        ioregs[&*format!("USART{}_CTRLB", index)],
+        Box::new(move |core, _, view| usart5.lock().unwrap().control_b_read(core, view)),
+        Box::new(move |core, _, value| usart6.lock().unwrap().control_b_write(core, value))
     );
 
     Some(usart)
