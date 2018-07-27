@@ -4,17 +4,15 @@ use std::sync::Arc;
 use core::AvrCoreState;
 use std::sync::Mutex;
 use byte_convert::u8bits;
-use bus::Bus;
-use bus::BusReader;
-use byte_convert::u8bits_unpack;
 use byte_convert::bit_at;
+use ::internals::signals::{Broadcast, BroadcastListener};
 
 
 static USART_INDEXES: [&'static str; 8] = ["C0", "C1", "D0", "D1", "E0", "E1", "F0", "F1"];
 
 pub type Usarts = HashMap<&'static str, Arc<Mutex<Usart>>>;
-pub type UsartTxSignal = Bus<u8>;
-pub type UsartTxConnection = BusReader<u8>;
+pub type UsartTxSignal = Broadcast<u8>;
+pub type UsartTxConnection = BroadcastListener<u8>;
 
 pub struct Usart {
     rx: u8,
@@ -39,7 +37,7 @@ impl Usart {
             rx_enable: false,
             tx_enable: false,
             data_empty: true,
-            tx_signal: Bus::new(1024),
+            tx_signal: Broadcast::new(),
             index
         }
     }
@@ -47,7 +45,7 @@ impl Usart {
     pub fn get_index(&self) -> &str { self.index }
 
     pub fn connect_to_tx(&mut self) -> UsartTxConnection {
-        self.tx_signal.add_rx()
+        self.tx_signal.create_listener()
     }
 
     fn data_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
@@ -62,7 +60,7 @@ impl Usart {
                 self.index,
                 value,
                 if value.is_ascii_graphic() { value as char } else { '?' });
-            self.tx_signal.broadcast(value);
+            self.tx_signal.send(value);
         }
     }
 

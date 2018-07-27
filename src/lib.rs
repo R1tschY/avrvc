@@ -6,7 +6,6 @@ extern crate bytes;
 extern crate hex;
 extern crate itertools;
 #[macro_use] extern crate log;
-extern crate bus;
 
 pub mod core;
 pub mod decoder;
@@ -20,3 +19,4 @@ pub mod models;
 pub mod bits;
 pub mod bytelevel;
 pub mod emulator;
+pub mod internals;
