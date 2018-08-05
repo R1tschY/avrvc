@@ -78,19 +78,22 @@ pub fn convert_binary(infile: &Path, intype: BinaryType, outfile: &Path, outtype
     }
 }
 
-/// compile test source and return path to compiled binary.
-pub fn compile_test(srcfilename: &str, outtype: BinaryType, mcu: &AvrMcu, flags: &[&str]) -> PathBuf {
+pub fn get_tests_dir() -> PathBuf {
     let mut testsdir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     testsdir.push("tests");
+    testsdir
+}
 
-    let mut elffile = testsdir.clone();
-    elffile.push("build");
-    elffile.push(srcfilename);
-    elffile.set_extension("elf");
+/// compile test source and return path to compiled binary.
+pub fn compile_test(srcfilename: &Path, outtype: BinaryType, mcu: &AvrMcu, flags: &[&str]) -> PathBuf {
+    let testsdir = get_tests_dir();
 
-    let mut destination = elffile.clone();
-    if outtype != BinaryType::Elf {
-        destination.set_extension(outtype.file_extension());
+    let elffile = testsdir.join("build").join(srcfilename).with_extension("elf");
+
+    let destination = if outtype != BinaryType::Elf {
+        elffile.with_extension(outtype.file_extension())
+    } else {
+        elffile.to_path_buf()
     };
 
     let mut source = testsdir.clone();
@@ -109,7 +112,7 @@ pub fn compile_test(srcfilename: &str, outtype: BinaryType, mcu: &AvrMcu, flags:
 
 
 /// compile source and create emulator
-pub fn setup_emulator(srcfilename: &str, model: &AvrModel, flags: &[&str]) -> AvrEmulator {
+pub fn setup_emulator(srcfilename: &Path, model: &AvrModel, flags: &[&str]) -> AvrEmulator {
     let binary = compile_test(srcfilename, BinaryType::Binary, model.mcu(), flags);
 
     let bytes = read_executable_file(&binary);
@@ -120,7 +123,7 @@ pub fn setup_emulator(srcfilename: &str, model: &AvrModel, flags: &[&str]) -> Av
 }
 
 
-/// run emulator a maximum of `max_cycles` cycles or return on first signal.
+/// run emulator a maximum of `MAX_CYCLES` cycles or return on first signal.
 pub fn run_emulator(emulator: &mut AvrEmulator, max_cycles: usize) -> Option<CpuSignal> {
     for _i in 0..max_cycles {
         if let Err(signal) = emulator.vm.step() {
