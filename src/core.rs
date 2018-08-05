@@ -437,7 +437,9 @@ pub struct AvrVmInfo {
 
     pub eeprom: Range<usize>,
 
-    pub io_regs: IoRegAddrs
+    pub io_regs: IoRegAddrs,
+
+    pub io_reg_offset: usize
 }
 
 impl AvrVmInfo {
@@ -457,7 +459,11 @@ impl AvrVmInfo {
                 .get("#MAPPED_EEPROM_START")
                 .map(|&start| start..(infos["#MAPPED_EEPROM_END"] + 1))
                 .unwrap_or(0..0),
-            io_regs: infos.iter().filter(|&x| !x.0.starts_with('#')).map(|x| (*x.0, *x.1)).collect()
+            io_regs: infos.iter()
+                .filter(|&x| !x.0.starts_with('#'))
+                .map(|x| (*x.0, *x.1))
+                .collect(),
+            io_reg_offset: if infos["#__AVR_ARCH__"] >= 100 { 0x00 } else { 0x20 }
         }
     }
 }

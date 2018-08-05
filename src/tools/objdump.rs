@@ -94,6 +94,8 @@ impl ObjDumpInstr for Instruction {
             &Ror { d } => format!("ror\tr{}", d),
             &Rjmp { k } => format!("rjmp\t.{:+}", k * 2),
             &Sbc { d, r } => format!("sbc\tr{}, r{}", d, r),
+            &Sbic { r, b } => format!("sbic\t0x{:02x}, {}", r, b),
+            &Sbis { r, b } => format!("sbis\t0x{:02x}, {}", r, b),
             &Sbci { d, k } => format!("sbci\tr{}, 0x{:02X}", d, k),
             &Sbiw { d, k } => format!("sbiw\tr{}, 0x{:02x}", d, k),
             &Sbrc { r, b } => format!("sbrc\tr{}, {}", r, b),

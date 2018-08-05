@@ -6,6 +6,7 @@ extern crate bytes;
 extern crate hex;
 extern crate itertools;
 #[macro_use] extern crate log;
+#[macro_use] extern crate matches;
 
 pub mod core;
 pub mod decoder;

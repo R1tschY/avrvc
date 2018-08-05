@@ -83,6 +83,8 @@ pub enum Instruction {
     Ror { d: u8 },
     Sbc { d: u8, r: u8 },
     Sbci { d: u8, k: u8 },
+    Sbic { r: u8, b: u8 },
+    Sbis { r: u8, b: u8 },
     Sbiw { d: u8, k: u8 },
     Sbrc { r: u8, b: u8 },
     Sbrs { r: u8, b: u8 },
@@ -240,6 +242,17 @@ fn call(vm: &mut AvrVm, dest: usize) {
         }
     }
     vm.core.pc = dest;
+}
+
+fn skip_if_bit(vm: &mut AvrVm, r: u8, b: u8, test_state: bool) {
+    let rr = vm.core.read_reg(r);
+    if (rr & (1 << b) != 0) == test_state {
+        let instr16 = AvrDecoder::is_2word_instruction(u16le(
+            vm.core.flash[vm.core.pc], vm.core.flash[vm.core.pc + 1]
+        ));
+        vm.core.pc += 1 + instr16 as usize;
+        vm.core.cycles += 1 + instr16 as u64;
+    }
 }
 
 impl Instruction {
@@ -585,6 +598,15 @@ impl Instruction {
                 state.core.write_reg(d, (res & 0xFF) as u8);
             }
 
+            &Sbic { r, b } | &Sbis { r, b } => {
+                let io_reg_offset = state.info.io_reg_offset as u8;
+                skip_if_bit(
+                    state,
+                    r + io_reg_offset,
+                    b,
+                    matches!(self, &Sbis { .. }));
+            }
+
             &Sbiw { d, k } => {
                 let rd = state.core.read_reg16(d) as u32;
                 let r = rd - k as u32;
@@ -596,15 +618,7 @@ impl Instruction {
             }
 
             &Sbrc { r, b } | &Sbrs { r, b } => {
-                let rr = state.core.read_reg(r);
-                let target = if let &Sbrs { .. } = self { true } else { false };
-                if (rr & (1 << b) != 0) == target {
-                    let instr16 = AvrDecoder::is_2word_instruction(u16le(
-                        state.core.flash[state.core.pc], state.core.flash[state.core.pc + 1]
-                    ));
-                    state.core.pc += 1 + instr16 as usize;
-                    state.core.cycles += 1 + instr16 as u64;
-                }
+                skip_if_bit(state, r, b, matches!(self, &Sbrs { .. }));
             }
 
             &StX { r, xop } => {
