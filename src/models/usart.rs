@@ -21,6 +21,7 @@ pub struct Usart {
 //    baudrate_scale: u8,
     rx_enable: bool,
     tx_enable: bool,
+    rx_buffer: Vec<u8>,
     data_empty: bool,
     tx_signal: UsartTxSignal,
 
@@ -36,6 +37,7 @@ impl Usart {
 //            baudrate_scale: 0,
             rx_enable: false,
             tx_enable: false,
+            rx_buffer: vec![],
             data_empty: true,
             tx_signal: Broadcast::new(),
             index
@@ -48,25 +50,44 @@ impl Usart {
         self.tx_signal.create_listener()
     }
 
+    pub fn push(&mut self, input: &[u8]) {
+        self.rx_buffer.extend_from_slice(input);
+    }
+
     fn data_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
+        if self.rx_enable {
+            if let Some(&byte) = self.rx_buffer.iter().next() {
+                if !view {
+                    self.rx_buffer.remove(0);
+                }
+                info!(
+                    target: "avrvc::usart",
+                    "USART {} Rx: 0x{:02x} {}",
+                    self.index,
+                    byte,
+                    display_ascii_char(byte));
+                return byte
+            }
+        }
+
         0
     }
 
     fn data_write(&mut self, core: &mut AvrCoreState, value: u8) {
-        if self.tx_enable {
+        if self.tx_enable && self.data_empty {
             info!(
                 target: "avrvc::usart",
                 "USART {} Tx: 0x{:02x} {}",
                 self.index,
                 value,
-                if value.is_ascii_graphic() { value as char } else { '?' });
+                display_ascii_char(value));
             self.tx_signal.send(value);
         }
     }
 
     fn status_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
         u8bits(
-            false, // RXCIF: Receive Complete Interrupt Flag
+            !self.rx_buffer.is_empty(), // RXCIF: Receive Complete Interrupt Flag
             false, // TXCIF: Transmit Complete Interrupt Flag
             self.data_empty, // DREIF: Data Register Empty Flag
             false, // FERR: Frame Error
@@ -93,6 +114,14 @@ impl Usart {
             target: "avrvc::usart",
             "USART {} Control B: RXEN={} TXEN={}",
             self.index, self.rx_enable as u8, self.tx_enable as u8);
+    }
+}
+
+fn display_ascii_char(value: u8) -> char {
+    if value.is_ascii_graphic() || value == 0x20 {
+        value as char
+    } else {
+        '�'
     }
 }
 
