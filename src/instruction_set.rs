@@ -361,9 +361,10 @@ impl Instruction {
             &Cp { d, r } => {
                 let rd = state.core.read_reg(d);
                 let rr = state.core.read_reg(r);
-                let r = rd - rr;
+                let r_ = rd as i16 - rr as i16;
+                let r = (r_ & 0xFF) as u8;
                 // TODO: H flag
-                state.core.carry = rr > rd;
+                state.core.carry = r_ < 0;
                 state.core.v = calc_v(rd, rr, r);
                 set_zns(state, r);
             }
@@ -371,13 +372,12 @@ impl Instruction {
             &Cpc { d, r } => {
                 let rd = state.core.read_reg(d);
                 let rr = state.core.read_reg(r);
-                let r = rd as i16 - rr as i16 - state.core.carry as i16;
+                let r_ = rd as i16 - rr as i16 - state.core.carry as i16;
+                let r = (r_ & 0xFF) as u8;
                 // TODO: H flag
                 state.core.carry = r < 0;
-                state.core.v = calc_v(rd, rr, (r & 0xFF) as u8);
-                state.core.n = (r >> 7) != 0;
-                state.core.zero = (r == 0) && state.core.zero;
-                state.core.sign = state.core.n ^ state.core.v;
+                state.core.v = calc_v(rd, rr, r);
+                set_zns(state, r);
             }
 
             &Cpi { d, k } => {
