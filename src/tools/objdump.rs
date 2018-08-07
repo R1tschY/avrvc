@@ -35,6 +35,7 @@ impl ObjDumpInstr for Instruction {
             &And { d, r } => format!("and\tr{}, r{}", d, r),
             &Andi { d, k } => format!("andi\tr{}, 0x{:02X}", d, k),
             &Asr { d } => format!("asr\tr{}", d),
+            &Bld { d, b } => format!("bld\tr{}, {}", d, b),
             &Break => String::from("break"),
 
             &Brcc { k } => format!("brcc\t.{:+}", k * 2),
@@ -54,6 +55,7 @@ impl ObjDumpInstr for Instruction {
             &Brvc { k } => format!("brvc\t.{:+}", k * 2),
             &Brvs { k } => format!("brvs\t.{:+}", k * 2),
 
+            &Bst { d, b } => format!("bst\tr{}, {}", d, b),
             &Call { k } => format_calljmp("call", k),
             &Cli => String::from("cli"),
             &Cp { d, r } => format!("cp\tr{}, r{}", d, r),

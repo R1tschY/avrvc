@@ -26,6 +26,7 @@ pub enum Instruction {
     And { d: u8, r: u8 },
     Andi { d: u8, k: u8 },
     Asr { d: u8 },
+    Bld { d: u8, b: u8 },
     Break,
     Brcc { k: i8 },
     Brcs { k: i8 },
@@ -43,6 +44,7 @@ pub enum Instruction {
     Brts { k: i8 },
     Brvc { k: i8 },
     Brvs { k: i8 },
+    Bst { d: u8, b: u8 },
     Call { k: u32 },
     Cli,
     Com { d: u8 },
@@ -315,6 +317,12 @@ impl Instruction {
                 state.core.write_reg(d, res);
             }
 
+            &Bld { d, b } => {
+                let rd = state.core.read_reg(d);
+                let t = state.core.t as u8;
+                state.core.write_reg(d, (rd & !(1 << b)) | (t << b));
+            },
+
             &Break => return Err(CpuSignal::Break),
 
             &Brcc { k } => if !state.core.carry { return rjmp(state, k as i32); },
@@ -333,6 +341,11 @@ impl Instruction {
             &Brts { k } => if state.core.t { return rjmp(state, k as i32); },
             &Brvc { k } => if !state.core.v { return rjmp(state, k as i32); },
             &Brvs { k } => if state.core.v { return rjmp(state, k as i32); },
+
+            &Bst { d, b } => {
+                let rd = state.core.read_reg(d);
+                state.core.t = (rd & (1 << b)) != 0;
+            },
 
             &Call { k } => call(state, k as usize),
 

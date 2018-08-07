@@ -99,7 +99,7 @@ fn add_instr_sbix(
     }
 }
 
-fn add_instr_sbrx(
+fn add_instr53(
     instr16: &mut HashMap<u16, Instruction>,
     base: u16,
     factory: fn(u8, u8) -> Instruction
@@ -273,8 +273,10 @@ impl AvrDecoder {
 
         add_instr_sbix(&mut instr16, 0b_1001_1001_0000_0000_u16, |r, b| Sbic { r, b });
         add_instr_sbix(&mut instr16, 0b_1001_1011_0000_0000_u16, |r, b| Sbis { r, b });
-        add_instr_sbrx(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Sbrc { r, b });
-        add_instr_sbrx(&mut instr16, 0b_1111_1110_0000_0000_u16, |r, b| Sbrs { r, b });
+        add_instr53(&mut instr16, 0b_1111_1000_0000_0000_u16, |d, b| Bld { d, b });
+        add_instr53(&mut instr16, 0b_1111_1010_0000_0000_u16, |d, b| Bst { d, b });
+        add_instr53(&mut instr16, 0b_1111_1100_0000_0000_u16, |r, b| Sbrc { r, b });
+        add_instr53(&mut instr16, 0b_1111_1110_0000_0000_u16, |r, b| Sbrs { r, b });
 
         add_instr48(&mut instr16, 0b_0011_0000_0000_0000_u16, |d, k| Cpi { d, k });
         add_instr48(&mut instr16, 0b_0100_0000_0000_0000_u16, |d, k| Sbci { d, k });
