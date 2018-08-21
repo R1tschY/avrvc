@@ -111,6 +111,8 @@ impl ObjDumpInstr for Instruction {
             &Sts16 { r, k } => format!("sts\t0x{:04X}, r{}", k, r),
             &Sub { d, r } => format!("sub\tr{}, r{}", d, r),
             &Subi { d, k } => format!("subi\tr{}, 0x{:02X}", d, k),
+            &Swap { d } => format!("swap\tr{}", d),
+
             &Invaild { .. } => format!("invalid"),
         }
     }

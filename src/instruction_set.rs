@@ -99,6 +99,7 @@ pub enum Instruction {
     Sts16 { r: u8, k: u16 },
     Sub { d: u8, r: u8 },
     Subi { d: u8, k: u8 },
+    Swap { d: u8 },
 
     Invaild { opcode: u16 }
 }
@@ -701,6 +702,12 @@ impl Instruction {
                 state.core.carry = res < 0;
                 state.core.v = calc_v(rd, k, (res & 0xFF) as u8);
                 set_zns(state, (res & 0xFF) as u8);
+            }
+            &Swap { d } => {
+                let rd = state.core.read_reg(d);
+                let high = rd >> 4;
+                let low = rd & 0xF;
+                state.core.write_reg(d, low << 4 | high);
             }
 
             &Invaild { opcode } => {

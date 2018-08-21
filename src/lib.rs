@@ -1,12 +1,9 @@
 extern crate docopt;
 extern crate tokio;
 extern crate tokio_io;
-#[macro_use] extern crate futures;
 extern crate bytes;
 extern crate hex;
 extern crate itertools;
-#[macro_use] extern crate log;
-#[macro_use] extern crate matches;
 
 pub mod core;
 pub mod decoder;
