@@ -258,6 +258,15 @@ fn skip_if_bit(vm: &mut AvrVm, r: u8, b: u8, test_state: bool) {
     }
 }
 
+fn cp(vm: &mut AvrVm, left: u8, right: u8) {
+    let diff = left as i16 - right as i16;
+    let r = (diff & 0xFF) as u8;
+    // TODO: H flag
+    vm.core.carry = diff < 0;
+    vm.core.v = calc_v(left, right, r);
+    set_zns(vm, r);
+}
+
 impl Instruction {
 
     /// execute instruction
@@ -362,32 +371,26 @@ impl Instruction {
             &Cp { d, r } => {
                 let rd = state.core.read_reg(d);
                 let rr = state.core.read_reg(r);
-                let r_ = rd as i16 - rr as i16;
-                let r = (r_ & 0xFF) as u8;
-                // TODO: H flag
-                state.core.carry = r_ < 0;
-                state.core.v = calc_v(rd, rr, r);
-                set_zns(state, r);
+                cp(state, rd, rr);
             }
 
             &Cpc { d, r } => {
                 let rd = state.core.read_reg(d);
                 let rr = state.core.read_reg(r);
-                let r_ = rd as i16 - rr as i16 - state.core.carry as i16;
-                let r = (r_ & 0xFF) as u8;
+
+                let diff = rd as i16 - rr as i16 - state.core.carry as i16;
+                let r = (diff & 0xFF) as u8;
                 // TODO: H flag
-                state.core.carry = r < 0;
+                state.core.carry = diff < 0;
                 state.core.v = calc_v(rd, rr, r);
-                set_zns(state, r);
+                state.core.n = (r >> 7) != 0;
+                state.core.zero = r == 0 && state.core.zero;
+                state.core.sign = state.core.n ^ state.core.v;
             }
 
             &Cpi { d, k } => {
                 let rd = state.core.read_reg(d);
-                let r = ((rd as i16 - k as i16) & 0xFF) as u8;
-                // TODO: H flag
-                state.core.carry = k > rd;
-                state.core.v = calc_v(rd, k, r);
-                set_zns(state, r);
+                cp(state, rd, k);
             }
 
             &Dec { d } => {
@@ -453,20 +456,20 @@ impl Instruction {
             &Muls { d, r } => {
                 let rr = as_signed(state.core.read_reg(r)) as i16;
                 let rd = as_signed(state.core.read_reg(d)) as i16;
-                let r = rr * rd;
-                state.core.write_reg16(0, as_unsigned16(r));
+                let r = as_unsigned16(rr * rd);
+                state.core.write_reg16(0, r);
                 state.core.zero = r == 0;
-                state.core.carry = bit_at_u16(as_unsigned16(r), 15);
+                state.core.carry = bit_at_u16(r, 15);
                 state.core.cycles += 1;
             }
 
             &Mulsu { d, r } => {
                 let rr = state.core.read_reg(r) as i16;
                 let rd = as_signed(state.core.read_reg(d)) as i16;
-                let r = rr * rd;
-                state.core.write_reg16(0, as_unsigned16(r));
+                let r = as_unsigned16(rr * rd);
+                state.core.write_reg16(0, r);
                 state.core.zero = r == 0;
-                state.core.carry = bit_at_u16(as_unsigned16(r), 15);
+                state.core.carry = bit_at_u16(r, 15);
                 state.core.cycles += 1;
             }
 
@@ -737,10 +740,26 @@ mod tests {
     use models::AvrModel;
     use instruction_set::Instruction::*;
     use std::mem;
+    use std::sync::Mutex;
+
+    lazy_static! {
+        static ref ATXMEGA128A4U: Mutex<AvrVm> = Mutex::new(ATxmega128A4U.create_vm());
+    }
+
+    fn fast_reset(vm: &mut AvrVm) {
+        vm.core.cycles = 0;
+    }
+
+    #[test]
+    fn instr_size() {
+        assert_eq!(mem::size_of::<Instruction>(), 8);
+    }
 
     #[test]
     fn execute_call_xmega() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         let old_sp = vm.core.sp;
         vm.core.pc = 0xAABBCC;
 
@@ -757,7 +776,8 @@ mod tests {
 
     #[test]
     fn execute_jmp() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
 
         let cmd = Jmp { k: 0x1337 };
         cmd.execute(&mut vm).unwrap();
@@ -768,7 +788,8 @@ mod tests {
 
     #[test]
     fn execute_rjmp() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
         vm.core.pc = 1000;
 
         let cmd = Rjmp { k: -5 };
@@ -780,7 +801,8 @@ mod tests {
 
     #[test]
     fn execute_ret() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
 
         vm.core.sp -= 3;
         let sp = vm.core.sp;
@@ -797,7 +819,8 @@ mod tests {
 
     #[test]
     fn execute_in() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
 
         vm.write_unchecked(33, 0x42u8);
 
@@ -810,7 +833,8 @@ mod tests {
 
     #[test]
     fn execute_out() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
 
         vm.core.write_reg(30, 0x76u8);
 
@@ -823,7 +847,8 @@ mod tests {
 
     #[test]
     fn execute_ldi() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
 
         let cmd = Ldi { d: 17, k: 42 };
         cmd.execute(&mut vm).unwrap();
@@ -833,7 +858,9 @@ mod tests {
 
     #[test]
     fn execute_add() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(17, 34);
         vm.core.write_reg(18, 12);
 
@@ -847,7 +874,9 @@ mod tests {
 
     #[test]
     fn execute_add_zero() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(17, 255);
         vm.core.write_reg(18, 1);
 
@@ -861,7 +890,9 @@ mod tests {
 
     #[test]
     fn execute_add_carry() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(17, 1);
         vm.core.write_reg(18, 1);
         vm.core.carry = true;
@@ -876,7 +907,9 @@ mod tests {
 
     #[test]
     fn execute_sub() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(0, 34);
         vm.core.write_reg(1, 12);
 
@@ -890,7 +923,9 @@ mod tests {
 
     #[test]
     fn execute_sub_zero() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(0, 55);
         vm.core.write_reg(1, 55);
 
@@ -904,7 +939,9 @@ mod tests {
 
     #[test]
     fn execute_sub_neg1() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(0, 50);
         vm.core.write_reg(1, 100);
 
@@ -918,7 +955,9 @@ mod tests {
 
     #[test]
     fn execute_sub_neg2() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(0, as_unsigned(-100));
         vm.core.write_reg(1, as_unsigned(-50));
 
@@ -932,7 +971,9 @@ mod tests {
 
     #[test]
     fn execute_dec() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(12, 0);
 
         let cmd = Dec { d: 12 };
@@ -943,7 +984,9 @@ mod tests {
 
     #[test]
     fn execute_dec_0x80() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(12, 0x80);
 
         let cmd = Dec { d: 12 };
@@ -955,7 +998,9 @@ mod tests {
 
     #[test]
     fn execute_inc() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(12, 0xFF);
 
         let cmd = Inc { d: 12 };
@@ -967,7 +1012,9 @@ mod tests {
 
     #[test]
     fn execute_inc_0x7f() {
-        let mut vm = ATxmega128A4U.create_vm();
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
         vm.core.write_reg(12, 0x7f);
 
         let cmd = Inc { d: 12 };
@@ -978,7 +1025,50 @@ mod tests {
     }
 
     #[test]
-    fn instr_size() {
-        assert_eq!(mem::size_of::<Instruction>(), 8);
+    fn execute_swap() {
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
+        vm.core.write_reg(12, 0b1001_1100);
+
+        let cmd = Swap { d: 12 };
+        cmd.execute(&mut vm).unwrap();
+
+        assert_eq!(vm.core.read_reg(12), 0b1100_1001);
+    }
+
+    #[test]
+    fn execute_bld() {
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
+        vm.core.write_reg(12, 0b1001_1100);
+
+        vm.core.t = true;
+        let cmd = Bld { d: 12, b: 0 };
+        cmd.execute(&mut vm).unwrap();
+        assert_eq!(vm.core.read_reg(12), 0b1001_1101, "actual: {:08b}", vm.core.read_reg(12));
+
+        vm.core.t = false;
+        let cmd = Bld { d: 12, b: 7 };
+        cmd.execute(&mut vm).unwrap();
+        assert_eq!(vm.core.read_reg(12), 0b0001_1101, "actual: {:08b}", vm.core.read_reg(12));
+    }
+
+
+    #[test]
+    fn execute_bst() {
+        let mut vm = ATXMEGA128A4U.lock().unwrap();
+        fast_reset(&mut vm);
+
+        vm.core.write_reg(12, 0b1001_1100);
+
+        let cmd = Bst { d: 12, b: 0 };
+        cmd.execute(&mut vm).unwrap();
+        assert_eq!(vm.core.t, false);
+
+        let cmd = Bst { d: 12, b: 7 };
+        cmd.execute(&mut vm).unwrap();
+        assert_eq!(vm.core.t, true);
     }
 }

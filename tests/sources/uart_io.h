@@ -27,6 +27,23 @@ char uart_getchar() {
     return USARTC0_DATA;
 }
 
+unsigned uart_gets(char stop, char* buffer, unsigned len) {
+    char c;
+    unsigned pos = 0;
+
+    if (len == 0)
+        return 0;
+
+    do {
+        c = uart_getchar();
+        buffer[pos] = c;
+        pos += 1;
+    } while (c != stop && pos < len);
+
+    buffer[pos] = '\0';
+    return pos;
+}
+
 // STDIO
 
 static int stdout_putchar(char c, FILE* stream) {

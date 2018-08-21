@@ -115,7 +115,10 @@ fn execute_test(relative_path: &Path, test: &UsartTest) {
         usart.lock().unwrap().connect_to_tx()
     };
 
-    assert_eq!(run_emulator(&mut emulator, MAX_CYCLES), Some(CpuSignal::Break));
+    let signal = run_emulator(&mut emulator, MAX_CYCLES);
+    assert_eq!(
+        signal, Some(CpuSignal::Break),
+        "crashed. halt at {:x} / {:x}", emulator.vm.core.pc, emulator.vm.core.pc * 2);
     drop(emulator);
 
     assert_eq!(

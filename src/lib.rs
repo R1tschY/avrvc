@@ -1,3 +1,8 @@
+#[macro_use] extern crate futures;
+#[macro_use] extern crate log;
+#[macro_use] extern crate matches;
+#[macro_use] extern crate lazy_static;
+
 extern crate docopt;
 extern crate tokio;
 extern crate tokio_io;
