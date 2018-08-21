@@ -1,9 +1,6 @@
 use models::AvrModel;
 use core::AvrVm;
-use core::AvrVmInfo;
-use models::register_gpio;
 use models::AvrMcu;
-use models::usart::register_usarts;
 use emulator::AvrEmulator;
 
 pub enum XmegaA4U {

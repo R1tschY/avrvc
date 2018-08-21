@@ -86,6 +86,7 @@ impl GdbCommands {
         }
     }
 
+    #[allow(unused)]
     fn send_output(&mut self, msg: &str) {
         self.tx.start_send(
             GdbServerPkt::Packet(

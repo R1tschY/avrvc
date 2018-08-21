@@ -34,8 +34,8 @@ pub enum DataMemoryType {
     SRam, XRam, Eeprom, Io, Register, Reserved
 }
 
-pub type IoReadFunc = Box<Fn(&AvrCoreState, usize, bool) -> u8 + Send>;
-pub type IoWriteFunc = Box<Fn(&mut AvrCoreState, usize, u8) + Send>;
+pub type IoReadFunc = Box<Fn(&AvrCoreState, usize, bool) -> u8 + Send + Sync>;
+pub type IoWriteFunc = Box<Fn(&mut AvrCoreState, usize, u8) + Send + Sync>;
 
 pub struct AvrCoreState {
     /// cycle counter
@@ -404,7 +404,7 @@ impl AvrVm {
     }
 
     pub fn crash(&mut self, crash_info: CpuSignal) -> Result<(), CpuSignal> {
-        self.reset();
+        // self.reset();
         Err(crash_info)
     }
 

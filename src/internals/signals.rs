@@ -24,7 +24,7 @@ impl<T: Clone> Broadcast<T> {
             for i in 0..size - 1 {
                 self.connections[i].unbounded_send(value.clone());
             }
-            self.connections[size - 1].unbounded_send(value);
+            self.connections[size - 1].unbounded_send(value); // TODO: result
         }
     }
 }

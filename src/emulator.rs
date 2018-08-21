@@ -2,9 +2,6 @@ use core::AvrVm;
 use core::AvrVmInfo;
 use models::register_gpio;
 use models::usart::register_usarts;
-use std::sync::Arc;
-use std::sync::Mutex;
-use models::usart::Usart;
 use models::usart::Usarts;
 
 

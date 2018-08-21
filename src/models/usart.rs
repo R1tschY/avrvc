@@ -15,8 +15,6 @@ pub type UsartTxSignal = Broadcast<u8>;
 pub type UsartTxConnection = BroadcastListener<u8>;
 
 pub struct Usart {
-    rx: u8,
-    tx: u8,
 //    baudrate: u16,
 //    baudrate_scale: u8,
     rx_enable: bool,
@@ -31,8 +29,6 @@ pub struct Usart {
 impl Usart {
     pub fn new(index: &'static str) -> Usart {
         Usart {
-            rx: 0,
-            tx: 0,
 //            baudrate: 0,
 //            baudrate_scale: 0,
             rx_enable: false,
@@ -54,7 +50,7 @@ impl Usart {
         self.rx_buffer.extend_from_slice(input);
     }
 
-    fn data_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
+    fn data_read(&mut self, _core: &AvrCoreState, view: bool) -> u8 {
         if self.rx_enable {
             if let Some(&byte) = self.rx_buffer.iter().next() {
                 if !view {
@@ -73,7 +69,7 @@ impl Usart {
         0
     }
 
-    fn data_write(&mut self, core: &mut AvrCoreState, value: u8) {
+    fn data_write(&mut self, _core: &mut AvrCoreState, value: u8) {
         if self.tx_enable && self.data_empty {
             info!(
                 target: "avrvc::usart",
@@ -85,7 +81,7 @@ impl Usart {
         }
     }
 
-    fn status_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
+    fn status_read(&mut self, _core: &AvrCoreState, _view: bool) -> u8 {
         u8bits(
             !self.rx_buffer.is_empty(), // RXCIF: Receive Complete Interrupt Flag
             false, // TXCIF: Transmit Complete Interrupt Flag
@@ -99,15 +95,15 @@ impl Usart {
         )
     }
 
-    fn status_write(&mut self, core: &mut AvrCoreState, value: u8) {
+    fn status_write(&mut self, _core: &mut AvrCoreState, _value: u8) {
 
     }
 
-    fn control_b_read(&mut self, core: &AvrCoreState, view: bool) -> u8 {
+    fn control_b_read(&mut self, _core: &AvrCoreState, _view: bool) -> u8 {
         0
     }
 
-    fn control_b_write(&mut self, core: &mut AvrCoreState, value: u8) {
+    fn control_b_write(&mut self, _core: &mut AvrCoreState, value: u8) {
         self.rx_enable = bit_at(value, 4);
         self.tx_enable = bit_at(value, 3);
         info!(
